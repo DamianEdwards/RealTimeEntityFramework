@@ -12,42 +12,53 @@ namespace RealTimeEntityFramework
     public abstract class RealTimeDbContext : DbContext
     {
         private static readonly ReaderWriterLockSlim _locker = new ReaderWriterLockSlim();
-        private static readonly Dictionary<Type, List<ISubscription>> _subscriptions = new Dictionary<Type, List<ISubscription>>();
+        private static readonly List<ISubscription> _subscriptions = new List<ISubscription>();
 
         public override int SaveChanges()
         {
-            // Capture changes before the save as it will reset the change tracker
+            var resetChangeTracking = false;
+
+            if (Configuration.AutoDetectChangesEnabled)
+            {
+                // Manually detect changes now so we can capture them before calling SaveChanges
+                // as that call will reset the change tracker.
+                ChangeTracker.DetectChanges();
+
+                // Turn change tracking off for now so it doesn't run again during the SaveChanges
+                // call below. We'll turn it on again before we return.
+                Configuration.AutoDetectChangesEnabled = false;
+                resetChangeTracking = true;
+            }
+
             var changes = CaptureChanges();
 
             var result = base.SaveChanges();
             
             // Notify the subscribers
             NotifySubscribers(changes);
-            
+
+            if (resetChangeTracking)
+            {
+                Configuration.AutoDetectChangesEnabled = true;
+            }
+
             return result;
         }
 
         /// <summary>
         /// Adds a callback to be invoked when changes are saved by the context.
         /// </summary>
-        /// <typeparam name="TEntity">The entity type</typeparam>
         /// <param name="callback">The callback to be invoked.</param>
         /// <returns>An object that when disposed cancels the subscription.</returns>
-        public static IDisposable Subscribe<TEntity>(Action<ChangeDetails<TEntity>> callback)
+        public static IDisposable Subscribe(Action<ChangeDetails> callback)
         {
-            var subscription = new Subscription<TEntity>(callback, s => Unsubscribe(typeof(TEntity), s));
+            var subscription = new Subscription(callback, s => Unsubscribe(s));
 
             try
             {
                 _locker.EnterWriteLock();
 
-                List<ISubscription> entityTypeSubscriptions;
-                if (!_subscriptions.TryGetValue(typeof(TEntity), out entityTypeSubscriptions))
-                {
-                    entityTypeSubscriptions = new List<ISubscription>();
-                    _subscriptions.Add(typeof(TEntity), entityTypeSubscriptions);
-                }
-                entityTypeSubscriptions.Add(subscription);
+                _subscriptions.Add(subscription);
             }
             finally
             {
@@ -57,12 +68,15 @@ namespace RealTimeEntityFramework
             return subscription;
         }
 
-        private Dictionary<Type, List<Tuple<ChangeType, object>>> CaptureChanges()
+        private Dictionary<Type, List<ChangeDetails>> CaptureChanges()
         {
-            // TODO: Should we honor AutoDetectChanges setting here and throw if false?
-            ChangeTracker.DetectChanges();
+            var changes = new Dictionary<Type, List<ChangeDetails>>();
+            
+            if (!ChangeTracker.HasChanges())
+            {
+                return changes;
+            }
 
-            var changes = new Dictionary<Type, List<Tuple<ChangeType, object>>>();
             var entries = ChangeTracker.Entries();
             foreach (var entry in entries)
             {
@@ -73,10 +87,10 @@ namespace RealTimeEntityFramework
 
                 var entityType = entry.Entity.GetType();
 
-                List<Tuple<ChangeType, object>> typeChanges;
+                List<ChangeDetails> typeChanges;
                 if (!changes.TryGetValue(entityType, out typeChanges))
                 {
-                    typeChanges = new List<Tuple<ChangeType, object>>();
+                    typeChanges = new List<ChangeDetails>();
                     changes.Add(entityType, typeChanges);
                 }
 
@@ -95,12 +109,12 @@ namespace RealTimeEntityFramework
                         break;
                 }
 
-                typeChanges.Add(new Tuple<ChangeType, object>(changeType, entry.Entity));
+                typeChanges.Add(new ChangeDetails(changeType, entry.Entity));
             }
             return changes;
         }
 
-        private static void NotifySubscribers(Dictionary<Type, List<Tuple<ChangeType, object>>> changes)
+        private static void NotifySubscribers(Dictionary<Type, List<ChangeDetails>> changes)
         {
             try
             {
@@ -111,15 +125,11 @@ namespace RealTimeEntityFramework
                     var entityType = kvp.Key;
                     var entityTypeChanges = kvp.Value;
 
-                    var entityTypeSubscriptions = _subscriptions[entityType];
-                    if (entityTypeSubscriptions != null)
+                    foreach (var subscription in _subscriptions)
                     {
-                        foreach (var subscription in entityTypeSubscriptions)
+                        foreach (var change in entityTypeChanges)
                         {
-                            foreach (var change in entityTypeChanges)
-                            {
-                                subscription.Notify(change.Item2, change.Item1);
-                            }
+                            subscription.Notify(change.ChangeType, change.Entity);
                         }
                     }
                 }
@@ -131,17 +141,13 @@ namespace RealTimeEntityFramework
         }
 
 
-        private static void Unsubscribe(Type entityType, ISubscription subscription)
+        private static void Unsubscribe(ISubscription subscription)
         {
             try
             {
                 _locker.EnterWriteLock();
 
-                List<ISubscription> entityTypeSubscriptions;
-                if (_subscriptions.TryGetValue(entityType, out entityTypeSubscriptions))
-                {
-                    entityTypeSubscriptions.Remove(subscription);
-                }
+                _subscriptions.Remove(subscription);
             }
             finally
             {

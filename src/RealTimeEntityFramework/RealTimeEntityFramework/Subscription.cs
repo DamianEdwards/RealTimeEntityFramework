@@ -7,23 +7,23 @@ namespace RealTimeEntityFramework
 {
     internal interface ISubscription
     {
-        void Notify(object entity, ChangeType changeType);
+        void Notify(ChangeType changeType, object entity);
     }
 
-    internal class Subscription<TEntity> : ISubscription, IDisposable
+    internal class Subscription : ISubscription, IDisposable
     {
-        private readonly Action<ChangeDetails<TEntity>> _onChange;
+        private readonly Action<ChangeDetails> _onChange;
         private readonly Action<ISubscription> _dispose;
    
-        public Subscription(Action<ChangeDetails<TEntity>> onChange, Action<ISubscription> dispose)
+        public Subscription(Action<ChangeDetails> onChange, Action<ISubscription> dispose)
         {
             _onChange = onChange ?? (_ => { });
             _dispose = dispose ?? (_ => { });
         }
 
-        public void Notify(object entity, ChangeType changeType)
+        public void Notify(ChangeType changeType, object entity)
         {
-            var details = new ChangeDetails<TEntity>(changeType, (TEntity) entity);
+            var details = new ChangeDetails(changeType, entity);
             _onChange(details);
         }
 

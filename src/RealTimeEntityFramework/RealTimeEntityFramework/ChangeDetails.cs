@@ -5,15 +5,15 @@ using System.Text;
 
 namespace RealTimeEntityFramework
 {
-    public class ChangeDetails<TEntity>
+    public class ChangeDetails
     {
-        public ChangeDetails(ChangeType changeType, TEntity entity)
+        public ChangeDetails(ChangeType changeType, object entity)
         {
             ChangeType = changeType;
             Entity = entity;
         }
 
-        public virtual TEntity Entity { get; private set; }
+        public virtual object Entity { get; private set; }
         public virtual ChangeType ChangeType { get; private set; }
     }
 
