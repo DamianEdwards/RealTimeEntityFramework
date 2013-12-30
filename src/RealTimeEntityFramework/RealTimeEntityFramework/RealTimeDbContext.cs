@@ -45,6 +45,42 @@ namespace RealTimeEntityFramework
             return result;
         }
 
+        public override Task<int> SaveChangesAsync()
+        {
+            return SaveChangesAsync(CancellationToken.None);
+        }
+
+        public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken)
+        {
+            var resetChangeTracking = false;
+
+            if (Configuration.AutoDetectChangesEnabled)
+            {
+                // Manually detect changes now so we can capture them before calling SaveChanges
+                // as that call will reset the change tracker.
+                ChangeTracker.DetectChanges();
+
+                // Turn change tracking off for now so it doesn't run again during the SaveChanges
+                // call below. We'll turn it on again before we return.
+                Configuration.AutoDetectChangesEnabled = false;
+                resetChangeTracking = true;
+            }
+
+            var changes = CaptureChanges();
+
+            var result = await base.SaveChangesAsync(cancellationToken);
+
+            // Notify the subscribers
+            NotifySubscribers(changes);
+
+            if (resetChangeTracking)
+            {
+                Configuration.AutoDetectChangesEnabled = true;
+            }
+
+            return result;
+        }
+
         /// <summary>
         /// Adds a callback to be invoked when changes are saved by the context.
         /// </summary>
@@ -94,22 +130,7 @@ namespace RealTimeEntityFramework
                     changes.Add(entityType, typeChanges);
                 }
 
-                ChangeType changeType;
-                switch (entry.State)
-                {
-                    case EntityState.Added:
-                        changeType = ChangeType.Insert;
-                        break;
-                    case EntityState.Deleted:
-                        changeType = ChangeType.Delete;
-                        break;
-                    case EntityState.Modified:
-                    default:
-                        changeType = ChangeType.Update;
-                        break;
-                }
-
-                typeChanges.Add(new ChangeDetails(changeType, entry.Entity));
+                typeChanges.Add(new ChangeDetails(entry.State, entry.Entity));
             }
             return changes;
         }
@@ -129,7 +150,7 @@ namespace RealTimeEntityFramework
                     {
                         foreach (var change in entityTypeChanges)
                         {
-                            subscription.Notify(change.ChangeType, change.Entity);
+                            subscription.Notify(change.EntityState, change.Entity);
                         }
                     }
                 }

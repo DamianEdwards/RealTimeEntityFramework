@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
 using System.Linq;
 using System.Web;
 
@@ -19,6 +20,7 @@ namespace RealTimeEntityFramework.Web.Models
         
         public int CategoryId { get; set; }
 
+        [DataType(DataType.MultilineText)]
         public string Content { get; set; }
 
         public ICollection<Comment> Comments { get; set; }

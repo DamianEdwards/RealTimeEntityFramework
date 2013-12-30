@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Data.Entity;
 using System.Linq;
 using System.Text;
 
@@ -7,7 +8,7 @@ namespace RealTimeEntityFramework
 {
     internal interface ISubscription
     {
-        void Notify(ChangeType changeType, object entity);
+        void Notify(EntityState entityState, object entity);
     }
 
     internal class Subscription : ISubscription, IDisposable
@@ -21,9 +22,9 @@ namespace RealTimeEntityFramework
             _dispose = dispose ?? (_ => { });
         }
 
-        public void Notify(ChangeType changeType, object entity)
+        public void Notify(EntityState entityState, object entity)
         {
-            var details = new ChangeDetails(changeType, entity);
+            var details = new ChangeDetails(entityState, entity);
             _onChange(details);
         }
 

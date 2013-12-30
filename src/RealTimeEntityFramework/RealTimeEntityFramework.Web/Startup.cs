@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 using System.Threading.Tasks;
 using Microsoft.Owin;
 using Owin;
@@ -12,7 +13,10 @@ namespace RealTimeEntityFramework.Web
     {
         public void Configuration(IAppBuilder app)
         {
-            BlogDbContext.Subscribe(details => {  });
+            BlogDbContext.Subscribe(details =>
+            {
+                Debug.WriteLine("Entity change notification received: A {0} was {1} ", details.Entity.GetType().Name, details.EntityState);
+            });
 
             app.MapSignalR();
         }
