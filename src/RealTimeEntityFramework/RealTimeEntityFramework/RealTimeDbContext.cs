@@ -12,7 +12,7 @@ namespace RealTimeEntityFramework
     public abstract class RealTimeDbContext : DbContext
     {
         private static readonly ReaderWriterLockSlim _locker = new ReaderWriterLockSlim();
-        private static readonly List<ISubscription> _subscriptions = new List<ISubscription>();
+        private static readonly Dictionary<Type, List<ISubscription>> _subscriptions = new Dictionary<Type, List<ISubscription>>();
 
         public override int SaveChanges()
         {
@@ -35,7 +35,7 @@ namespace RealTimeEntityFramework
             var result = base.SaveChanges();
             
             // Notify the subscribers
-            NotifySubscribers(changes);
+            NotifySubscribers(GetType(), changes);
 
             if (resetChangeTracking)
             {
@@ -71,7 +71,7 @@ namespace RealTimeEntityFramework
             var result = await base.SaveChangesAsync(cancellationToken);
 
             // Notify the subscribers
-            NotifySubscribers(changes);
+            NotifySubscribers(GetType(), changes);
 
             if (resetChangeTracking)
             {
@@ -86,15 +86,28 @@ namespace RealTimeEntityFramework
         /// </summary>
         /// <param name="callback">The callback to be invoked.</param>
         /// <returns>An object that when disposed cancels the subscription.</returns>
-        public static IDisposable Subscribe(Action<ChangeDetails> callback)
+        public static IDisposable Subscribe(Type dbContextType, Action<ChangeDetails> callback)
         {
-            var subscription = new Subscription(callback, s => Unsubscribe(s));
+            if (!typeof(DbContext).IsAssignableFrom(dbContextType))
+            {
+                throw new ArgumentException("The type provided for parameter 'dbContextType' must derive from System.Data.Entity.DbContext.", "dbContextType");
+            }
+
+            var subscription = new Subscription(callback, s => Unsubscribe(dbContextType, s));
 
             try
             {
                 _locker.EnterWriteLock();
 
-                _subscriptions.Add(subscription);
+                List<ISubscription> contextSubscriptions;
+
+                if (!_subscriptions.TryGetValue(dbContextType, out contextSubscriptions))
+                {
+                    contextSubscriptions = new List<ISubscription>();
+                    _subscriptions.Add(dbContextType, contextSubscriptions);
+                }
+
+                contextSubscriptions.Add(subscription);
             }
             finally
             {
@@ -135,18 +148,25 @@ namespace RealTimeEntityFramework
             return changes;
         }
 
-        private static void NotifySubscribers(Dictionary<Type, List<ChangeDetails>> changes)
+        private static void NotifySubscribers(Type dbContextType, Dictionary<Type, List<ChangeDetails>> changes)
         {
             try
             {
                 _locker.EnterReadLock();
+
+                List<ISubscription> contextSubscriptions;
+
+                if (!_subscriptions.TryGetValue(dbContextType, out contextSubscriptions))
+                {
+                    return;
+                }
 
                 foreach (var kvp in changes)
                 {
                     var entityType = kvp.Key;
                     var entityTypeChanges = kvp.Value;
 
-                    foreach (var subscription in _subscriptions)
+                    foreach (var subscription in contextSubscriptions)
                     {
                         foreach (var change in entityTypeChanges)
                         {
@@ -162,13 +182,20 @@ namespace RealTimeEntityFramework
         }
 
 
-        private static void Unsubscribe(ISubscription subscription)
+        private static void Unsubscribe(Type dbContextType, ISubscription subscription)
         {
             try
             {
                 _locker.EnterWriteLock();
 
-                _subscriptions.Remove(subscription);
+                List<ISubscription> contextSubscriptions;
+
+                if (!_subscriptions.TryGetValue(dbContextType, out contextSubscriptions))
+                {
+                    return;
+                }
+
+                contextSubscriptions.Remove(subscription);
             }
             finally
             {

@@ -13,7 +13,7 @@ namespace RealTimeEntityFramework.Web
     {
         public void Configuration(IAppBuilder app)
         {
-            BlogDbContext.Subscribe(details =>
+            RealTimeDbContext.Subscribe(typeof(BlogDbContext), details =>
             {
                 Debug.WriteLine("Entity change notification received: A {0} was {1} ", details.Entity.GetType().Name, details.EntityState);
             });

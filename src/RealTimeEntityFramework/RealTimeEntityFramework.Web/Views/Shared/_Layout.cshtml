@@ -37,6 +37,23 @@
 
     @Scripts.Render("~/bundles/jquery")
     @Scripts.Render("~/bundles/bootstrap")
+    @Scripts.Render("~/scripts/jquery.signalR-2.0.1.js")
+    @Scripts.Render("~/signalr/js")
     @RenderSection("scripts", required: false)
+
+    <script>
+        $(function () {
+
+            var hub = $.connection.blogHub;
+
+            hub.client.entityUpdated = function (details) {
+                console.log("Entity change notification received");
+                console.log(details.Entity);
+            };
+
+            $.connection.hub.logging = true;
+            $.connection.hub.start();
+        });
+    </script>
 </body>
 </html>

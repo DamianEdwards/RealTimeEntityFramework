@@ -110,3 +110,7 @@ UpgradeLog*.XML
 
 # Bower Components
 bower_components
+
+# SQL DB data files
+*.mdf
+*.ldf
