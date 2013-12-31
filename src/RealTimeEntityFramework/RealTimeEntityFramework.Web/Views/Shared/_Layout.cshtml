@@ -47,8 +47,8 @@
             var hub = $.connection.blogHub;
 
             hub.client.entityUpdated = function (details) {
-                console.log("Entity change notification received");
-                console.log(details.Entity);
+                console.log("Entity change notification received: " + details.changeType);
+                console.log(details.entity);
             };
 
             $.connection.hub.logging = true;
