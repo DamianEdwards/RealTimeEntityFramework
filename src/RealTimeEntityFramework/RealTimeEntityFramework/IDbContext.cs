@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Data.Entity.Core;
 using System.Data.Entity.Infrastructure;
 using System.Linq;
 using System.Text;
@@ -23,5 +24,7 @@ namespace RealTimeEntityFramework
         Func<int> SaveChanges { get; }
 
         Func<CancellationToken, Task<int>> SaveChangesAsync { get; }
+
+        EntityKey GetEntityKey(object entity);
     }
 }

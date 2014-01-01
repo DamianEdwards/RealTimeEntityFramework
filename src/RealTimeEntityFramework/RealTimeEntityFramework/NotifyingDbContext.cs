@@ -12,47 +12,50 @@ using System.Threading.Tasks;
 
 namespace RealTimeEntityFramework
 {
-    public abstract class RealTimeDbContext : DbContext
+    /// <summary>
+    /// A DbContext base class the sends notifications to subscribers whenever any tracked entities are added, updated or deleted.
+    /// </summary>
+    public abstract class NotifyingDbContext : DbContext
     {
         private DbContextChangeNotifier _changeNotifier;
 
-        public RealTimeDbContext()
+        public NotifyingDbContext()
             : base()
         {
             Initialize();
         }
 
-        public RealTimeDbContext(string nameOrConnectionString)
+        public NotifyingDbContext(string nameOrConnectionString)
             : base(nameOrConnectionString)
         {
             Initialize();
         }
 
-        public RealTimeDbContext(DbCompiledModel model)
+        public NotifyingDbContext(DbCompiledModel model)
             : base(model)
         {
             Initialize();
         }
 
-        public RealTimeDbContext(string nameOrConnectionString, DbCompiledModel model)
+        public NotifyingDbContext(string nameOrConnectionString, DbCompiledModel model)
             : base(nameOrConnectionString, model)
         {
             Initialize();
         }
 
-        public RealTimeDbContext(DbConnection existingConnection, bool contextOwnsConnection)
+        public NotifyingDbContext(DbConnection existingConnection, bool contextOwnsConnection)
             : base(existingConnection, contextOwnsConnection)
         {
             Initialize();
         }
 
-        public RealTimeDbContext(ObjectContext objectContext, bool dbContextOwnsObjectContext)
+        public NotifyingDbContext(ObjectContext objectContext, bool dbContextOwnsObjectContext)
             : base(objectContext, dbContextOwnsObjectContext)
         {
             Initialize();
         }
 
-        public RealTimeDbContext(DbConnection existingConnection, DbCompiledModel model, bool contextOwnsConnection)
+        public NotifyingDbContext(DbConnection existingConnection, DbCompiledModel model, bool contextOwnsConnection)
             : base(existingConnection, model, contextOwnsConnection)
         {
             Initialize();

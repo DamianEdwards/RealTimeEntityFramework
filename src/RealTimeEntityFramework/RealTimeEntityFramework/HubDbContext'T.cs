@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Data.Common;
+using System.Data.Entity.Core.Metadata.Edm;
 using System.Data.Entity.Core.Objects;
 using System.Data.Entity.Infrastructure;
 using System.Linq;
@@ -12,7 +13,11 @@ using Microsoft.AspNet.SignalR.Infrastructure;
 
 namespace RealTimeEntityFramework
 {
-    public abstract class HubDbContext<THub> : RealTimeDbContext where THub : IHub
+    /// <summary>
+    /// A DbContext base class the sends notifications to SignalR clients via implied Hub groups whenever any tracked entities are added, updated or deleted.
+    /// </summary>
+    /// <typeparam name="THub"></typeparam>
+    public abstract class HubDbContext<THub> : NotifyingDbContext where THub : IHub
     {
         private IDisposable _subscription;
         private IHubContext _hubContext;
@@ -101,18 +106,6 @@ namespace RealTimeEntityFramework
             Initialize(connectionManager);
         }
 
-        private void Initialize(IConnectionManager connectionManager)
-        {
-            ClientEntityUpdatedMethodName = "entityUpdated";
-
-            _hubContext = connectionManager.GetHubContext<THub>();
-
-            _subscription = Subscribe(GetType(), details =>
-            {
-                ((IClientProxy)_hubContext.Clients.All).Invoke(ClientEntityUpdatedMethodName, new { entity = details.Entity, changeType = details.EntityState.ToString() });
-            });
-        }
-
         public string ClientEntityUpdatedMethodName { get; set; }
 
         protected override void Dispose(bool disposing)
@@ -120,6 +113,27 @@ namespace RealTimeEntityFramework
             _subscription.Dispose();
 
             base.Dispose(disposing);
+        }
+
+        private void Initialize(IConnectionManager connectionManager)
+        {
+            ClientEntityUpdatedMethodName = "entityUpdated";
+
+            _hubContext = connectionManager.GetHubContext<THub>();
+
+            _subscription = Subscribe(GetType(), Notify);
+        }
+
+        private void Notify(ChangeDetails details)
+        {
+            var payload = new
+            {
+                changeType = details.EntityState.ToString(),
+                keyNames = details.EntityKey.EntityKeyValues.Select(k => k.Key).ToList(),
+                entity = details.Entity
+            };
+
+            ((IClientProxy)_hubContext.Clients.All).Invoke(ClientEntityUpdatedMethodName, payload);
         }
     }
 }

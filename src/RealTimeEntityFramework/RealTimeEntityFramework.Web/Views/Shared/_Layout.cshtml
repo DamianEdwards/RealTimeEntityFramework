@@ -48,6 +48,7 @@
 
             hub.client.entityUpdated = function (details) {
                 console.log("Entity change notification received: " + details.changeType);
+                console.log(details.keyNames);
                 console.log(details.entity);
             };
 

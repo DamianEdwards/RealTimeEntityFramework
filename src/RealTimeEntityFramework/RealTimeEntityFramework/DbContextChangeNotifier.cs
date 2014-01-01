@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Data.Entity;
+using System.Data.Entity.Infrastructure;
 using System.Linq;
 using System.Text;
 using System.Threading;
@@ -149,7 +150,9 @@ namespace RealTimeEntityFramework
                     changes.Add(entityType, typeChanges);
                 }
 
-                typeChanges.Add(new ChangeDetails(entry.State, entry.Entity));
+                var entityKey = _dbContext.GetEntityKey(entry.Entity);
+
+                typeChanges.Add(new ChangeDetails(entry.State, entityKey, entry.Entity));
             }
             return changes;
         }
@@ -178,7 +181,7 @@ namespace RealTimeEntityFramework
                     {
                         foreach (var change in entityTypeChanges)
                         {
-                            subscription.Notify(change.EntityState, change.Entity);
+                            subscription.Notify(change.EntityState, change.EntityKey, change.Entity);
                         }
                     }
                 }

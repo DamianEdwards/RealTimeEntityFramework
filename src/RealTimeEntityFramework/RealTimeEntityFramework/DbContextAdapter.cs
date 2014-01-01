@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Data.Entity;
+using System.Data.Entity.Core;
 using System.Data.Entity.Infrastructure;
 using System.Linq;
 using System.Text;
@@ -60,5 +61,15 @@ namespace RealTimeEntityFramework
         public Func<int> SaveChanges { get; private set; }
 
         public Func<CancellationToken, Task<int>> SaveChangesAsync { get; private set; }
+
+
+        public EntityKey GetEntityKey(object entity)
+        {
+            var objectContext = ((IObjectContextAdapter)_dbContext).ObjectContext;
+            var objectStateEntry = objectContext.ObjectStateManager.GetObjectStateEntry(entity);
+            var entityKey = objectStateEntry != null ? objectStateEntry.EntityKey : null;
+            
+            return entityKey;
+        }
     }
 }
