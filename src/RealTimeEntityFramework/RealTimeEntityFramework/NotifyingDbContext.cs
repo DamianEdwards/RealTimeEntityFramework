@@ -86,7 +86,7 @@ namespace RealTimeEntityFramework
         /// </summary>
         /// <param name="callback">The callback to be invoked.</param>
         /// <returns>An object that when disposed cancels the subscription.</returns>
-        public static IDisposable Subscribe(Type dbContextType, Action<ChangeDetails> callback)
+        public static IDisposable Subscribe(Type dbContextType, Action<IEnumerable<ChangeDetails>> callback)
         {
             return DbContextChangeNotifier.Subscribe(dbContextType, callback);
         }

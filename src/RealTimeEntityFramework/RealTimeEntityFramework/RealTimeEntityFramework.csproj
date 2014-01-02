@@ -62,7 +62,6 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="ChangeDetails.cs" />
-    <Compile Include="DataHub%27T.cs" />
     <Compile Include="DataResult.cs" />
     <Compile Include="DbContextChangeNotifier.cs" />
     <Compile Include="DbContextAdapter.cs" />

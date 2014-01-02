@@ -26,7 +26,7 @@ namespace RealTimeEntityFramework
             _dbContext = dbContext;
         }
 
-        public static IDisposable Subscribe(Type dbContextType, Action<ChangeDetails> callback)
+        public static IDisposable Subscribe(Type dbContextType, Action<IEnumerable<ChangeDetails>> callback)
         {
             ValidateDbContextType(dbContextType);
 
@@ -151,8 +151,22 @@ namespace RealTimeEntityFramework
                 }
 
                 var entityKey = _dbContext.GetEntityKey(entry.Entity);
+                var changeDetails = new ChangeDetails(entry.State, entityKey, entry.Entity);
 
-                typeChanges.Add(new ChangeDetails(entry.State, entityKey, entry.Entity));
+                if (entry.State == EntityState.Modified)
+                {
+                    // Capture the actual property changes
+                    var changedProperties = entry.OriginalValues.PropertyNames
+                        .Zip(entry.CurrentValues.PropertyNames, (c, o) => new PropertyChange(c, entry.OriginalValues[c], entry.CurrentValues[c]))
+                        .Where(c => c.CurrentValue != c.OriginalValue);
+
+                    foreach (var p in changedProperties)
+                    {
+                        changeDetails.PropertyChanges.Add(p);
+                    }
+                }
+
+                typeChanges.Add(changeDetails);
             }
             return changes;
         }
@@ -179,10 +193,7 @@ namespace RealTimeEntityFramework
 
                     foreach (var subscription in contextSubscriptions)
                     {
-                        foreach (var change in entityTypeChanges)
-                        {
-                            subscription.Notify(change.EntityState, change.EntityKey, change.Entity);
-                        }
+                        subscription.Notify(entityTypeChanges);
                     }
                 }
             }

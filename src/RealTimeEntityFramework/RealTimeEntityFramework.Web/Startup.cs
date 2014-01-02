@@ -13,9 +13,12 @@ namespace RealTimeEntityFramework.Web
     {
         public void Configuration(IAppBuilder app)
         {
-            NotifyingDbContext.Subscribe(typeof(BlogDbContext), details =>
+            NotifyingDbContext.Subscribe(typeof(BlogDbContext), changeDetails =>
             {
-                Debug.WriteLine("Entity change notification received: A {0} was {1} ", details.Entity.GetType().Name, details.EntityState);
+                foreach (var change in changeDetails)
+                {
+                    Debug.WriteLine("Entity change notification received: A {0} was {1} ", change.Entity.GetType().Name, change.EntityState);
+                }
             });
 
             app.MapSignalR();

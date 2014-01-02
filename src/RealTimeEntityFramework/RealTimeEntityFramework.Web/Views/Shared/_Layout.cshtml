@@ -42,19 +42,22 @@
     @RenderSection("scripts", required: false)
 
     <script>
-        $(function () {
+        
+        var blogHub = $.connection.blogHub;
 
-            var hub = $.connection.blogHub;
+        blogHub.client.entityUpdated = function (details) {
+            var change;
+            for (var i = 0; i < details.length; i++) {
+                change = details[i];
+                console.log("Entity change notification received: " + change.changeType);
+                console.log(change.keyNames);
+                console.log(change.entity);
+            }
+        };
 
-            hub.client.entityUpdated = function (details) {
-                console.log("Entity change notification received: " + details.changeType);
-                console.log(details.keyNames);
-                console.log(details.entity);
-            };
-
-            $.connection.hub.logging = true;
-            $.connection.hub.start();
-        });
+        $.connection.hub.logging = true;
+        $.connection.hub.start();
+        
     </script>
 </body>
 </html>
