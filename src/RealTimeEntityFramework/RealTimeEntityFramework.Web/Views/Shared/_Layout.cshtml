@@ -45,14 +45,9 @@
         
         var blogHub = $.connection.blogHub;
 
-        blogHub.client.entityUpdated = function (details) {
-            var change;
-            for (var i = 0; i < details.length; i++) {
-                change = details[i];
-                console.log("Entity change notification received: " + change.changeType);
-                console.log(change.keyNames);
-                console.log(change.entity);
-            }
+        blogHub.client.entityUpdated = function (change) {
+            console.log("Entity change notification received: " + change.Scope + " " + change.ChangeType);
+            console.log(change);
         };
 
         $.connection.hub.logging = true;

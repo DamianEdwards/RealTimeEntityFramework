@@ -158,7 +158,7 @@ namespace RealTimeEntityFramework
                     // Capture the actual property changes
                     var changedProperties = entry.OriginalValues.PropertyNames
                         .Zip(entry.CurrentValues.PropertyNames, (c, o) => new PropertyChange(c, entry.OriginalValues[c], entry.CurrentValues[c]))
-                        .Where(c => c.CurrentValue != c.OriginalValue);
+                        .Where(c => !Object.Equals(c.CurrentValue, c.OriginalValue));
 
                     foreach (var p in changedProperties)
                     {

@@ -21,9 +21,9 @@ namespace RealTimeEntityFramework
 
         IEnumerable<DbEntityEntry> ChangedEntries();
 
-        Func<int> SaveChanges { get; }
+        int SaveChanges();
 
-        Func<CancellationToken, Task<int>> SaveChangesAsync { get; }
+        Task<int> SaveChangesAsync(CancellationToken cancellationToken);
 
         EntityKey GetEntityKey(object entity);
     }

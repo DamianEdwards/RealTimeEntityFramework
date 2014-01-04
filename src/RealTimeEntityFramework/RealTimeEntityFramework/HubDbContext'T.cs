@@ -9,7 +9,6 @@ using System.Data.Entity.Infrastructure;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
-using System.Text;
 using System.Threading.Tasks;
 using Microsoft.AspNet.SignalR;
 using Microsoft.AspNet.SignalR.Hubs;
@@ -121,11 +120,11 @@ namespace RealTimeEntityFramework
             return result;
         }
 
-        public IEnumerable<TEntity> Select<TEntity>(HubCallerContext hubContext, DbSet<TEntity> entities, Expression<Func<TEntity, bool>> predicate) where TEntity : class
+        public IQueryable<TEntity> Select<TEntity>(HubCallerContext hubContext, DbSet<TEntity> entities, Expression<Func<TEntity, bool>> predicate) where TEntity : class
         {
             var result = entities.Where(predicate);
 
-            AddToNotificationGroup(hubContext.ConnectionId, result, predicate);
+            AddToNotificationGroup(hubContext.ConnectionId, predicate);
 
             return result;
         }
@@ -137,7 +136,7 @@ namespace RealTimeEntityFramework
             return _hubContext.Groups.Add(connectionId, group);
         }
 
-        public Task AddToNotificationGroup<TEntity>(string connectionId, IEnumerable<TEntity> entities, Expression<Func<TEntity, bool>> predicate)
+        public Task AddToNotificationGroup<TEntity>(string connectionId, Expression<Func<TEntity, bool>> predicate)
         {
             var group = GetPredicateNotificationGroupName(predicate);
 
@@ -146,22 +145,24 @@ namespace RealTimeEntityFramework
 
         public string GetPrimaryKeyNotificationGroupName<TEntity>(TEntity entity)
         {
-            var entityKey = GetEntityKey(entity);
+            return GetPrimaryKeyNotificationGroupName(typeof(TEntity).FullName, GetEntityKey(entity));
+        }
 
+        public string GetPrimaryKeyNotificationGroupName(string entityTypeName, EntityKey entityKey)
+        {
             if (entityKey != null)
             {
                 // Build group name for entity key, format: [EntityTypeName]_PrimaryKey_[Key1Name]_[Key1Value]_[Key2Name]_[Key2Value]
-                var prefix = String.Format("{0}_PrimaryKey", typeof(TEntity).FullName);
+                var prefix = String.Format("{0}_PrimaryKey", entityTypeName);
                 return entityKey.EntityKeyValues.Aggregate(prefix, (name, k) => String.Format("{0}_{1}_{2}", name, k.Key, k.Value));
             }
 
-            // TODO: No key found, should we throw here?
-            return null;
+            throw new InvalidOperationException("The entity provided does not support change notifications as a primary key could not be found.");
         }
 
         public string GetPredicateNotificationGroupName<TEntity>(Expression<Func<TEntity, bool>> predicate)
         {
-            // TODO: Analyze the predicate and create a group name for each notification compatible condition, e.g. foreign key values
+            // TODO: Support predicates with multiple compatible conditions, which result in multiple groups, e.g. p => p.CategoryId = categoryId && p.IsVisible
 
             var valueExtractor = new PredicateExpressionValueExtractor<TEntity>(this);
             valueExtractor.Visit(predicate);
@@ -170,7 +171,7 @@ namespace RealTimeEntityFramework
 
             if (expr == null)
             {
-                throw new InvalidOperationException("WTF");
+                throw new InvalidOperationException("The predicate provided does not support change notifications.");
             }
 
             object value = expr.Value;
@@ -178,6 +179,130 @@ namespace RealTimeEntityFramework
             // Build group name for predicate value, format: [EntityTypeName]_Set_[FieldName]_[FieldValue]
             var groupName = String.Format("{0}_Set_{1}_{2}", typeof(TEntity).FullName, valueExtractor.EntityFieldName, value);
             return groupName;
+        }
+
+        public IEnumerable<string> GetForeignKeysNotificationGroupNames<TEntity>(TEntity entity)
+        {
+
+
+            yield return null;
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            _subscription.Dispose();
+
+            base.Dispose(disposing);
+        }
+
+        private void Initialize(IConnectionManager connectionManager)
+        {
+            ClientEntityUpdatedMethodName = "entityUpdated";
+
+            _hubContext = connectionManager.GetHubContext<THub>();
+
+            _subscription = Subscribe(GetType(), Notify);
+        }
+
+        private void Notify(IEnumerable<ChangeDetails> details)
+        {
+            var clients = _hubContext.Clients;
+
+            // Inspect the changes and push update notifications to generated groups
+            foreach (var change in details)
+            {
+                // Notify subscribers listening for changes to this specific entity
+                var groupName = GetPrimaryKeyNotificationGroupName(change.Entity.GetType().FullName, change.EntityKey);
+                var notification = new ChangeNotification
+                {
+                    Scope = ChangeScope.SpecificEntity,
+                    ChangeType = ChangeNotification.ChangeTypeFromEntityState(change.EntityState),
+                    EntityType = change.Entity.GetType(),
+                    EntityKeyNames = change.EntityKey.EntityKeyValues.Select(k => k.Key).ToList(),
+                    EntityKeyValues = change.EntityKey.EntityKeyValues.Select(k => k.Value).ToList()
+                };
+                ((IClientProxy)clients.Group(groupName)).Invoke(ClientEntityUpdatedMethodName, notification);
+
+                // Notify subscribers listening for changes to sets which contain/contained this entity
+
+                // Foreign keys, [EntityTypeName]_Set_[ForeignKeyName]_[KeyValue]
+                var foreignKeyGroupNamePrefix = String.Format("{0}_Set", change.Entity.GetType().FullName);
+                
+                var entityMetadata = this.GetEntityModelMetadata(change.Entity.GetType());
+                var foreignKeys = entityMetadata.NavigationProperties
+                    .Select(np => np.GetDependentProperties().FirstOrDefault())
+                    .Where(p => p != null);
+
+                foreach (var key in foreignKeys)
+                {
+                    var keyProperty = Entry(change.Entity).Property(key.Name);
+                    
+                    if (keyProperty.ParentProperty != null)
+                    {
+                        // This is complex property so umm, yeah, no idea what we should do here :S
+                        continue;
+                    }
+
+                    var changedKey = change.PropertyChanges.FirstOrDefault(c => c.PropertyName == key.Name);
+                    if (changedKey != null)
+                    {
+                        // The key changed
+                        
+                        // Notify the group for the original set this entity was removed from
+                        groupName = String.Format("{0}_{1}_{2}", foreignKeyGroupNamePrefix, keyProperty.Name, keyProperty.OriginalValue);
+                        notification = new ChangeNotification
+                        {
+                            Scope = ChangeScope.EntitySet,
+                            ChangeType = ChangeType.Deleted,
+                            SourceFieldNames = new[] { key.Name },
+                            EntityType = change.Entity.GetType(),
+                            EntityKeyNames = change.EntityKey.EntityKeyValues.Select(k => k.Key).ToList(),
+                            EntityKeyValues = change.EntityKey.EntityKeyValues.Select(k => k.Value).ToList()
+                        };
+                        ((IClientProxy)clients.Group(groupName)).Invoke(ClientEntityUpdatedMethodName, notification);
+
+                        // Notify the group for the current set this entity was added to
+                        groupName = String.Format("{0}_{1}_{2}", foreignKeyGroupNamePrefix, keyProperty.Name, keyProperty.CurrentValue);
+                        notification = new ChangeNotification
+                        {
+                            Scope = ChangeScope.EntitySet,
+                            ChangeType = ChangeType.Added,
+                            SourceFieldNames = new[] { key.Name },
+                            EntityType = change.Entity.GetType(),
+                            EntityKeyNames = change.EntityKey.EntityKeyValues.Select(k => k.Key).ToList(),
+                            EntityKeyValues = change.EntityKey.EntityKeyValues.Select(k => k.Value).ToList()
+                        };
+                        ((IClientProxy)clients.Group(groupName)).Invoke(ClientEntityUpdatedMethodName, notification);
+                    }
+                    else
+                    {
+                        // The key didn't change so just tell the current set group that an entity changed
+                        groupName = String.Format("{0}_{1}_{2}", foreignKeyGroupNamePrefix, keyProperty.Name, keyProperty.CurrentValue);
+                        notification = new ChangeNotification
+                        {
+                            Scope = ChangeScope.EntitySet,
+                            ChangeType = ChangeType.Updated,
+                            SourceFieldNames = new[] { key.Name },
+                            EntityType = change.Entity.GetType(),
+                            EntityKeyNames = change.EntityKey.EntityKeyValues.Select(k => k.Key).ToList(),
+                            EntityKeyValues = change.EntityKey.EntityKeyValues.Select(k => k.Value).ToList()
+                        };
+                        ((IClientProxy)clients.Group(groupName)).Invoke(ClientEntityUpdatedMethodName, notification);
+                    }
+                }
+                
+                // TODO: Other fields
+                
+            }
+        }
+
+        private EntityKey GetEntityKey<TEntity>(TEntity entity)
+        {
+            var objectContext = ((IObjectContextAdapter)this).ObjectContext;
+            var objectStateEntry = objectContext.ObjectStateManager.GetObjectStateEntry(entity);
+            var entityKey = objectStateEntry != null ? objectStateEntry.EntityKey : null;
+
+            return entityKey;
         }
 
         private class PredicateExpressionValueExtractor<TEntity> : ExpressionVisitor
@@ -199,18 +324,20 @@ namespace RealTimeEntityFramework
                 if (_evaluating)
                 {
                     // TODO: Evaluate nested binary expressions
-                    
+
                 }
                 else
                 {
                     Expression target = null;
 
-                    if (IsEntityPropertyMemberExpression(node.Left))
+                    if (IsNotificationSupportedEntityPropertyExpression(node.Left))
                     {
+                        EntityFieldName = ((MemberExpression)node.Left).Member.Name;
                         target = node.Right;
                     }
-                    else if (IsEntityPropertyMemberExpression(node.Right))
+                    else if (IsNotificationSupportedEntityPropertyExpression(node.Right))
                     {
+                        EntityFieldName = ((MemberExpression)node.Right).Member.Name;
                         target = node.Left;
                     }
 
@@ -240,8 +367,6 @@ namespace RealTimeEntityFramework
                     {
                         var value = ((FieldInfo)node.Member).GetValue(((ConstantExpression)node.Expression).Value);
 
-                        EntityFieldName = node.Member.Name;
-
                         return Expression.Constant(value);
                     }
                 }
@@ -249,7 +374,7 @@ namespace RealTimeEntityFramework
                 return base.VisitMember(node);
             }
 
-            private bool IsEntityPropertyMemberExpression(Expression expression)
+            private bool IsNotificationSupportedEntityPropertyExpression(Expression expression)
             {
                 if (expression.NodeType == ExpressionType.MemberAccess)
                 {
@@ -257,64 +382,28 @@ namespace RealTimeEntityFramework
                     if (memberExpression.Member.DeclaringType == typeof(TEntity)
                         && memberExpression.Member.MemberType == MemberTypes.Property)
                     {
-                        // TODO: Ensure the member being accessed is configured as a notification trigger, e.g. foregin key, explicitly decorated
-                        
-                        var conceptualSpaceItems = _objectContext.MetadataWorkspace.GetItems<EntityType>(DataSpace.CSpace);
-                        var objectSpaceItems = (ObjectItemCollection)_objectContext.MetadataWorkspace.GetItemCollection(DataSpace.OSpace);
-                        var entityMetadata = conceptualSpaceItems.FirstOrDefault(entityType =>
-                        {
-                            var objectSpaceType = (EntityType)_objectContext.MetadataWorkspace.GetObjectSpaceType(entityType);
-                            var clrType = objectSpaceItems.GetClrType((StructuralType)objectSpaceType);
-                            return clrType == typeof(TEntity);
-                        });
+                        // Get the EF meta model for the entity
+                        var entityMetadata = _objectContext.GetEntityModelMetadata<TEntity>();
 
+                        // Determine if the property being accessed is supported as a notification trigger
+
+                        // Foreign Keys
+                        // TODO: This logic needs to more complex to support multi-part foreign keys, etc.
                         var isComparingToForeignKey = entityMetadata.NavigationProperties
                             .Any(np => np.GetDependentProperties()
-                                         .Any(p => String.Equals(p.Name,  memberExpression.Member.Name, StringComparison.Ordinal)));
+                                         .Any(p => String.Equals(p.Name, memberExpression.Member.Name, StringComparison.Ordinal)));
 
-                        return isComparingToForeignKey;
+                        if (isComparingToForeignKey)
+                        {
+                            return true;
+                        }
+
+                        // TODO: Support other property types, e.g. primitive types that are explicitly decorated as notification triggers
                     }
                 }
 
                 return false;
             }
-        }
-
-        protected override void Dispose(bool disposing)
-        {
-            _subscription.Dispose();
-
-            base.Dispose(disposing);
-        }
-
-        private void Initialize(IConnectionManager connectionManager)
-        {
-            ClientEntityUpdatedMethodName = "entityUpdated";
-
-            _hubContext = connectionManager.GetHubContext<THub>();
-
-            _subscription = Subscribe(GetType(), Notify);
-        }
-
-        private void Notify(IEnumerable<ChangeDetails> details)
-        {
-            var payload = details.Select(c => new
-            {
-                changeType = c.EntityState.ToString(),
-                keyNames = c.EntityKey.EntityKeyValues.Select(k => k.Key).ToList(),
-                entity = c.Entity
-            });
-
-            ((IClientProxy)_hubContext.Clients.All).Invoke(ClientEntityUpdatedMethodName, payload);
-        }
-
-        private EntityKey GetEntityKey<TEntity>(TEntity entity)
-        {
-            var objectContext = ((IObjectContextAdapter)this).ObjectContext;
-            var objectStateEntry = objectContext.ObjectStateManager.GetObjectStateEntry(entity);
-            var entityKey = objectStateEntry != null ? objectStateEntry.EntityKey : null;
-
-            return entityKey;
         }
     }
 }

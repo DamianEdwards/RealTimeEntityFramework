@@ -22,7 +22,7 @@ namespace RealTimeEntityFramework.Web.Hubs
         {
             using (var db = new BlogDbContext())
             {
-                return db.Select(Context, db.Posts, p => p.CategoryId == categoryId);
+                return db.Select(Context, db.Posts, p => p.CategoryId == categoryId).ToList();
             }
         }
 
@@ -30,7 +30,7 @@ namespace RealTimeEntityFramework.Web.Hubs
         {
             using (var db = new BlogDbContext())
             {
-                return db.Select(Context, db.Posts, p => p.CategoryId == 1);
+                return db.Select(Context, db.Posts, p => p.CategoryId == 1).ToList();
             }
         }
 
@@ -38,7 +38,7 @@ namespace RealTimeEntityFramework.Web.Hubs
         {
             using (var db = new BlogDbContext())
             {
-                return db.Select(Context, db.Posts, p => p.PublishOn.Month == month);
+                return db.Select(Context, db.Posts, p => p.PublishOn.Month == month).ToList();
             }
         }
     }

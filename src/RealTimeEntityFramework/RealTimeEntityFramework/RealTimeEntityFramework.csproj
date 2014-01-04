@@ -62,9 +62,10 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="ChangeDetails.cs" />
+    <Compile Include="ChangeNotification.cs" />
     <Compile Include="DataResult.cs" />
     <Compile Include="DbContextChangeNotifier.cs" />
-    <Compile Include="DbContextAdapter.cs" />
+    <Compile Include="EntityFrameworkExtensions.cs" />
     <Compile Include="HubDbContext%27T.cs" />
     <Compile Include="IDbContext.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

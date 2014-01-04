@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Data.Common;
 using System.Data.Entity;
+using System.Data.Entity.Core;
 using System.Data.Entity.Core.Objects;
 using System.Data.Entity.Infrastructure;
 using System.Linq;
@@ -15,7 +16,7 @@ namespace RealTimeEntityFramework
     /// <summary>
     /// A DbContext base class the sends notifications to subscribers whenever any tracked entities are added, updated or deleted.
     /// </summary>
-    public abstract class NotifyingDbContext : DbContext
+    public abstract class NotifyingDbContext : DbContext, IDbContext
     {
         private DbContextChangeNotifier _changeNotifier;
 
@@ -63,7 +64,7 @@ namespace RealTimeEntityFramework
 
         private void Initialize()
         {
-            _changeNotifier = new DbContextChangeNotifier(new DbContextAdapter(this, () => base.SaveChanges(), ct => base.SaveChangesAsync(ct)));
+            _changeNotifier = new DbContextChangeNotifier(this);
         }
 
         public override int SaveChanges()
@@ -89,6 +90,57 @@ namespace RealTimeEntityFramework
         public static IDisposable Subscribe(Type dbContextType, Action<IEnumerable<ChangeDetails>> callback)
         {
             return DbContextChangeNotifier.Subscribe(dbContextType, callback);
+        }
+
+        Type IDbContext.DbContextType
+        {
+            get { return GetType(); }
+        }
+
+        bool IDbContext.AutoDetectChangesEnabled
+        {
+            get
+            {
+                return Configuration.AutoDetectChangesEnabled;
+            }
+            set
+            {
+                Configuration.AutoDetectChangesEnabled = value;
+            }
+        }
+
+        bool IDbContext.HasChanges()
+        {
+            return ChangeTracker.HasChanges();
+        }
+
+        void IDbContext.DetectChanges()
+        {
+            ChangeTracker.DetectChanges();
+        }
+
+        IEnumerable<DbEntityEntry> IDbContext.ChangedEntries()
+        {
+            return ChangeTracker.Entries();
+        }
+
+        int IDbContext.SaveChanges()
+        {
+            return base.SaveChanges();
+        }
+
+        Task<int> IDbContext.SaveChangesAsync(CancellationToken cancellationToken)
+        {
+            return base.SaveChangesAsync(cancellationToken);
+        }
+
+        EntityKey IDbContext.GetEntityKey(object entity)
+        {
+            var objectContext = ((IObjectContextAdapter)this).ObjectContext;
+            var objectStateEntry = objectContext.ObjectStateManager.GetObjectStateEntry(entity);
+            var entityKey = objectStateEntry != null ? objectStateEntry.EntityKey : null;
+
+            return entityKey;
         }
     }
 }
