@@ -250,12 +250,11 @@ namespace RealTimeEntityFramework
                     }
 
                     if (change.EntityState == EntityState.Added ||
-                        change.EntityState == EntityState.Deleted ||
-                        change.PropertyChanges.Any(c => c.PropertyName == key.Name))
+                        change.EntityState == EntityState.Modified && change.PropertyChanges.Any(c => c.PropertyName == key.Name))
                     {
                         // The key changed or this is a new/deleted entity
 
-                        if (change.EntityState != EntityState.Added)
+                        if (change.EntityState == EntityState.Modified)
                         {
                             // Notify the group for the original set this entity was removed from
                             groupName = String.Format("{0}_{1}_{2}", foreignKeyGroupNamePrefix, keyProperty.Name, keyProperty.OriginalValue);
@@ -271,25 +270,22 @@ namespace RealTimeEntityFramework
                             ((IClientProxy)clients.Group(groupName)).Invoke(ClientEntityUpdatedMethodName, notification);
                         }
 
-                        if (change.EntityState != EntityState.Deleted)
+                        // Notify the group for the current set this entity was added to
+                        groupName = String.Format("{0}_{1}_{2}", foreignKeyGroupNamePrefix, keyProperty.Name, keyProperty.CurrentValue);
+                        notification = new ChangeNotification
                         {
-                            // Notify the group for the current set this entity was added to
-                            groupName = String.Format("{0}_{1}_{2}", foreignKeyGroupNamePrefix, keyProperty.Name, keyProperty.CurrentValue);
-                            notification = new ChangeNotification
-                            {
-                                Scope = ChangeScope.EntitySet,
-                                ChangeType = ChangeType.Added,
-                                SourceFieldNames = new[] { key.Name },
-                                EntityType = change.Entity.GetType(),
-                                EntityKeyNames = change.EntityKey.EntityKeyValues.Select(k => k.Key).ToList(),
-                                EntityKeyValues = change.EntityKey.EntityKeyValues.Select(k => k.Value).ToList()
-                            };
-                            ((IClientProxy)clients.Group(groupName)).Invoke(ClientEntityUpdatedMethodName, notification);
-                        }
+                            Scope = ChangeScope.EntitySet,
+                            ChangeType = ChangeType.Added,
+                            SourceFieldNames = new[] { key.Name },
+                            EntityType = change.Entity.GetType(),
+                            EntityKeyNames = change.EntityKey.EntityKeyValues.Select(k => k.Key).ToList(),
+                            EntityKeyValues = change.EntityKey.EntityKeyValues.Select(k => k.Value).ToList()
+                        };
+                        ((IClientProxy)clients.Group(groupName)).Invoke(ClientEntityUpdatedMethodName, notification);
                     }
                     else
                     {
-                        // The key didn't change so just tell the current set group that an entity changed
+                        // The key didn't change or the entity was deleted so just tell the current set group that an entity changed
                         groupName = String.Format("{0}_{1}_{2}", foreignKeyGroupNamePrefix, keyProperty.Name, keyProperty.CurrentValue);
                         notification = new ChangeNotification
                         {
