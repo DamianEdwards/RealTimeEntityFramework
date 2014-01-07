@@ -25,7 +25,7 @@ namespace RealTimeEntityFramework
 
         public EntityState EntityState { get; private set; }
 
-        public EntityKey EntityKey { get; private set; }
+        public EntityKey EntityKey { get; internal set; }
 
         public object Entity { get; private set; }
 

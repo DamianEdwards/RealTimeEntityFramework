@@ -19,7 +19,14 @@ namespace RealTimeEntityFramework.Web.Controllers
         public async Task<ActionResult> Index()
         {
             var posts = db.Posts.Include(p => p.Category);
-            return View(await posts.ToListAsync());
+            if (!Request.IsAjaxRequest())
+            {
+                return View("IndexAjax", await posts.ToListAsync());
+            }
+            else
+            {
+                return View("_IndexRows", await posts.ToListAsync());
+            }
         }
 
         // GET: /Posts/Details/5

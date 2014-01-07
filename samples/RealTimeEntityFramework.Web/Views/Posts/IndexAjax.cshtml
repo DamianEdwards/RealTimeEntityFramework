@@ -1,0 +1,71 @@
+﻿@model IEnumerable<RealTimeEntityFramework.Web.Models.Post>
+
+@{
+    ViewBag.Title = "Index";
+}
+
+<h2>Index</h2>
+
+<p>
+    @Html.ActionLink("Create New", "Create")
+</p>
+<table class="table">
+    <thead>
+        <tr>
+            <th>
+                @Html.DisplayNameFor(model => model.Category.Name)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.Title)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.CreatedOn)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.PublishOn)
+            </th>
+            <th>
+                @Html.DisplayNameFor(model => model.Content)
+            </th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody id="postsBody" data-contentUrl="@Url.Action("Index")">
+        @Html.Partial("_IndexRows", Model)
+    </tbody>
+</table>
+
+@section Scripts {
+
+@Scripts.Render("~/bundles/jquery")
+@Scripts.Render("~/bundles/bootstrap")
+@Scripts.Render("~/scripts/jquery.signalR-2.0.1.js")
+@Scripts.Render("~/signalr/js")
+
+<script>
+
+    var blogHub = $.connection.blogHub,
+        $postsBody = $("#postsBody");
+
+    blogHub.client.entityUpdated = function (change) {
+        console.log("Entity change notification received: " + change.Scope + " " + change.ChangeType);
+        console.log(change);
+
+        // Refresh the table of posts!
+        $.get($postsBody.attr("data-contentUrl"), function (postsHtml) {
+            $postsBody.html(postsHtml);
+        });
+    };
+
+    $.connection.hub.logging = true;
+    $.connection.hub.start().done(function () {
+        // Invoke the method on the server to subscribe to updates but just ignore the response.
+        // We'll make this better later on :)
+        blogHub.server.getPostsForDefaultCategory().done(function () {
+            console.log("Now subscribed to notification groups!");
+        });
+    });
+
+</script>
+
+}

@@ -35,24 +35,7 @@
         </footer>
     </div>
 
-    @Scripts.Render("~/bundles/jquery")
-    @Scripts.Render("~/bundles/bootstrap")
-    @Scripts.Render("~/scripts/jquery.signalR-2.0.1.js")
-    @Scripts.Render("~/signalr/js")
     @RenderSection("scripts", required: false)
 
-    <script>
-        
-        var blogHub = $.connection.blogHub;
-
-        blogHub.client.entityUpdated = function (change) {
-            console.log("Entity change notification received: " + change.Scope + " " + change.ChangeType);
-            console.log(change);
-        };
-
-        $.connection.hub.logging = true;
-        $.connection.hub.start();
-        
-    </script>
 </body>
 </html>

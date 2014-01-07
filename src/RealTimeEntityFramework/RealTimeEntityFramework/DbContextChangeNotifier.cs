@@ -113,6 +113,9 @@ namespace RealTimeEntityFramework
 
             var result = await _dbContext.SaveChangesAsync(cancellationToken);
 
+            // Get key information for any added entities
+            UpdateEntityKeys(changes);
+
             // Notify the subscribers
             NotifySubscribers(_dbContext.DbContextType, changes);
 
@@ -122,6 +125,18 @@ namespace RealTimeEntityFramework
             }
 
             return result;
+        }
+
+        private void UpdateEntityKeys(Dictionary<Type, List<ChangeDetails>> changes)
+        {
+            var insertedEntities = changes.Values
+                .SelectMany(l => l)
+                .Where(change => change.EntityState == EntityState.Added);
+            
+            foreach (var change in insertedEntities)
+            {
+                change.EntityKey = _dbContext.GetEntityKey(change.Entity);
+            }
         }
 
         private Dictionary<Type, List<ChangeDetails>> CaptureChanges()
