@@ -111,44 +111,113 @@ namespace RealTimeEntityFramework
 
         public string ClientEntityUpdatedMethodName { get; set; }
 
-        public TEntity Find<TEntity>(HubCallerContext hubContext, DbSet<TEntity> entities, params object[] keyValues) where TEntity : class
+        public TEntity FindWithNotifications<TEntity>(HubCallerContext hubContext, DbSet<TEntity> entities, params object[] keyValues) where TEntity : class
         {
-            var result = entities.Find(keyValues);
+            var entity = entities.Find(keyValues);
 
-            AddToNotificationGroup(hubContext.ConnectionId, result);
+            AddToNotificationGroup(hubContext.ConnectionId, entity);
 
-            return result;
+            return entity;
         }
 
-        public IQueryable<TEntity> Select<TEntity>(HubCallerContext hubContext, DbSet<TEntity> entities, Expression<Func<TEntity, bool>> predicate) where TEntity : class
+        public TEntity FindWithNotifications<TEntity>(ICollection<string> groupNames, DbSet<TEntity> entities, params object[] keyValues) where TEntity : class
         {
-            var result = entities.Where(predicate);
+            var entity = entities.Find(keyValues);
 
-            AddToNotificationGroup(hubContext.ConnectionId, predicate);
+            groupNames.Add(GetPrimaryKeyNotificationGroupName(entity));
 
-            return result;
+            return entity;
         }
 
-        public Task AddToNotificationGroup<TEntity>(string connectionId, TEntity entity)
+        public IQueryable<TEntity> SelectWithNotifications<TEntity>(HubCallerContext hubContext, DbSet<TEntity> entities, Expression<Func<TEntity, bool>> predicate) where TEntity : class
+        {
+            StartNotifications(hubContext, entities, predicate);
+
+            return entities.Where(predicate);
+        }
+
+        public IQueryable<TEntity> SelectWithNotifications<TEntity>(ICollection<string> groupNames, DbSet<TEntity> entities, Expression<Func<TEntity, bool>> predicate) where TEntity : class
+        {
+            foreach (var group in GetPredicateNotificationGroupNames(predicate))
+            {
+                groupNames.Add(group);
+            }
+
+            return entities.Where(predicate);
+        }
+
+        public void StartNotifications<TEntity>(HubCallerContext hubContext, DbSet<TEntity> entities, params object[] keyValues) where TEntity : class
+        {
+            var entity = entities.Find(keyValues);
+
+            AddToNotificationGroup(hubContext.ConnectionId, entity);
+        }
+
+        public void StartNotifications<TEntity>(HubCallerContext hubContext, DbSet<TEntity> entities, Expression<Func<TEntity, bool>> predicate) where TEntity : class
+        {
+            AddToNotificationGroups(hubContext.ConnectionId, predicate);
+        }
+
+        public void StopNotifications<TEntity>(HubCallerContext hubContext, TEntity entity)
+        {
+            RemoveFromNotificationGroup(hubContext.ConnectionId, entity);
+        }
+
+        public void StopNotifications<TEntity>(HubCallerContext hubContext, DbSet<TEntity> entities, Expression<Func<TEntity, bool>> predicate) where TEntity : class
+        {
+            RemoveFromNotificationGroups(hubContext.ConnectionId, predicate);
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            _subscription.Dispose();
+
+            base.Dispose(disposing);
+        }
+
+        private void Initialize(IConnectionManager connectionManager)
+        {
+            ClientEntityUpdatedMethodName = "entityUpdated";
+
+            _hubContext = connectionManager.GetHubContext<THub>();
+
+            _subscription = Subscribe(GetType(), Notify);
+        }
+
+        private Task AddToNotificationGroup<TEntity>(string connectionId, TEntity entity)
         {
             var group = GetPrimaryKeyNotificationGroupName(entity);
 
             return _hubContext.Groups.Add(connectionId, group);
         }
 
-        public Task AddToNotificationGroup<TEntity>(string connectionId, Expression<Func<TEntity, bool>> predicate)
+        private Task AddToNotificationGroups<TEntity>(string connectionId, Expression<Func<TEntity, bool>> predicate)
         {
-            var group = GetPredicateNotificationGroupName(predicate);
+            var groups = GetPredicateNotificationGroupNames(predicate);
 
-            return _hubContext.Groups.Add(connectionId, group);
+            return Task.WhenAll(groups.Select(g => _hubContext.Groups.Add(connectionId, g)));
         }
 
-        public string GetPrimaryKeyNotificationGroupName<TEntity>(TEntity entity)
+        private Task RemoveFromNotificationGroup<TEntity>(string connectionId, TEntity entity)
+        {
+            var group = GetPrimaryKeyNotificationGroupName(entity);
+
+            return _hubContext.Groups.Remove(connectionId, group);
+        }
+
+        private Task RemoveFromNotificationGroups<TEntity>(string connectionId, Expression<Func<TEntity, bool>> predicate)
+        {
+            var groups = GetPredicateNotificationGroupNames(predicate);
+
+            return Task.WhenAll(groups.Select(g => _hubContext.Groups.Remove(connectionId, g)));
+        }
+
+        private string GetPrimaryKeyNotificationGroupName<TEntity>(TEntity entity)
         {
             return GetPrimaryKeyNotificationGroupName(typeof(TEntity).FullName, GetEntityKey(entity));
         }
 
-        public string GetPrimaryKeyNotificationGroupName(string entityTypeName, EntityKey entityKey)
+        private string GetPrimaryKeyNotificationGroupName(string entityTypeName, EntityKey entityKey)
         {
             if (entityKey != null && entityKey.EntityKeyValues != null)
             {
@@ -160,7 +229,7 @@ namespace RealTimeEntityFramework
             return null;
         }
 
-        public string GetPredicateNotificationGroupName<TEntity>(Expression<Func<TEntity, bool>> predicate)
+        private IEnumerable<string> GetPredicateNotificationGroupNames<TEntity>(Expression<Func<TEntity, bool>> predicate)
         {
             // TODO: Support predicates with multiple compatible conditions, which result in multiple groups, e.g. p => p.CategoryId = categoryId && p.IsVisible
 
@@ -178,30 +247,8 @@ namespace RealTimeEntityFramework
 
             // Build group name for predicate value, format: [EntityTypeName]_Set_[FieldName]_[FieldValue]
             var groupName = String.Format("{0}_Set_{1}_{2}", typeof(TEntity).FullName, valueExtractor.EntityFieldName, value);
-            return groupName;
-        }
-
-        public IEnumerable<string> GetForeignKeysNotificationGroupNames<TEntity>(TEntity entity)
-        {
-
-
-            yield return null;
-        }
-
-        protected override void Dispose(bool disposing)
-        {
-            _subscription.Dispose();
-
-            base.Dispose(disposing);
-        }
-
-        private void Initialize(IConnectionManager connectionManager)
-        {
-            ClientEntityUpdatedMethodName = "entityUpdated";
-
-            _hubContext = connectionManager.GetHubContext<THub>();
-
-            _subscription = Subscribe(GetType(), Notify);
+            
+            yield return groupName;
         }
 
         private void Notify(IEnumerable<ChangeDetails> details)

@@ -1,8 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Threading.Tasks;
-using System.Web;
 using Microsoft.AspNet.SignalR;
 using RealTimeEntityFramework.Web.Models;
 
@@ -14,7 +12,7 @@ namespace RealTimeEntityFramework.Web.Hubs
         {
             using (var db = new BlogDbContext())
             {
-                return db.Find(Context, db.Posts, id);
+                return db.FindWithNotifications(Context, db.Posts, id);
             }
         }
 
@@ -22,7 +20,8 @@ namespace RealTimeEntityFramework.Web.Hubs
         {
             using (var db = new BlogDbContext())
             {
-                return db.Select(Context, db.Posts, p => p.CategoryId == categoryId).ToList();
+                return db.SelectWithNotifications(Context, db.Posts, p => p.CategoryId == categoryId)
+                         .ToList();
             }
         }
 
@@ -30,7 +29,8 @@ namespace RealTimeEntityFramework.Web.Hubs
         {
             using (var db = new BlogDbContext())
             {
-                return db.Select(Context, db.Posts, p => p.CategoryId == 1).ToList();
+                return db.SelectWithNotifications(Context, db.Posts, p => p.CategoryId == 1)
+                         .ToList();
             }
         }
 
@@ -38,7 +38,24 @@ namespace RealTimeEntityFramework.Web.Hubs
         {
             using (var db = new BlogDbContext())
             {
-                return db.Select(Context, db.Posts, p => p.PublishOn.Month == month).ToList();
+                return db.SelectWithNotifications(Context, db.Posts, p => p.PublishOn.Month == month)
+                         .ToList();
+            }
+        }
+
+        public void StartNotificationsForPosts(int categoryId)
+        {
+            using (var db = new BlogDbContext())
+            {
+                db.StartNotifications(Context, db.Posts, p => p.CategoryId == categoryId);
+            }
+        }
+
+        public void StopNotificationsForPosts(int categoryId)
+        {
+            using (var db = new BlogDbContext())
+            {
+                db.StopNotifications(Context, db.Posts, p => p.CategoryId == categoryId);
             }
         }
     }

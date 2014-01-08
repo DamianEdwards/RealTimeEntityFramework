@@ -1,4 +1,7 @@
-﻿@model IEnumerable<RealTimeEntityFramework.Web.Models.Post>
+﻿@using RealTimeEntityFramework.Web;
+@using RealTimeEntityFramework.Web.Models.ViewModels;
+
+@model PostsIndexViewModel
 
 @{
     ViewBag.Title = "Index";
@@ -13,25 +16,25 @@
     <thead>
         <tr>
             <th>
-                @Html.DisplayNameFor(model => model.Category.Name)
+                @Html.DisplayNameFor(Model.Posts, post => post.Category.Name)
             </th>
             <th>
-                @Html.DisplayNameFor(model => model.Title)
+                @Html.DisplayNameFor(Model.Posts, post => post.Title)
             </th>
             <th>
-                @Html.DisplayNameFor(model => model.CreatedOn)
+                @Html.DisplayNameFor(Model.Posts, post => post.CreatedOn)
             </th>
             <th>
-                @Html.DisplayNameFor(model => model.PublishOn)
+                @Html.DisplayNameFor(Model.Posts, post => post.PublishOn)
             </th>
             <th>
-                @Html.DisplayNameFor(model => model.Content)
+                @Html.DisplayNameFor(Model.Posts, post => post.Content)
             </th>
             <th></th>
         </tr>
     </thead>
-    <tbody id="postsBody" data-contentUrl="@Url.Action("Index")">
-        @Html.Partial("_IndexRows", Model)
+    <tbody id="postsBody" data-contentUrl="@Url.Action("IndexRows")" data-categoryId="@Model.CategoryId">
+        @Html.Partial("_IndexRows", Model.Posts)
     </tbody>
 </table>
 
@@ -45,23 +48,24 @@
 <script>
 
     var blogHub = $.connection.blogHub,
-        $postsBody = $("#postsBody");
+        $postsBody = $("#postsBody"),
+        contentUrl = $postsBody.attr("data-contentUrl"),
+        categoryId = $postsBody.attr("data-categoryId");
 
     blogHub.client.entityUpdated = function (change) {
-        console.log("Entity change notification received: " + change.Scope + " " + change.ChangeType);
+        console.log("Entity change notification received!");
         console.log(change);
 
-        // Refresh the table of posts!
-        $.get($postsBody.attr("data-contentUrl"), function (postsHtml) {
+        // Refresh the table of posts
+        $.get(contentUrl, function (postsHtml) {
             $postsBody.html(postsHtml);
         });
     };
 
     $.connection.hub.logging = true;
     $.connection.hub.start().done(function () {
-        // Invoke the method on the server to subscribe to updates but just ignore the response.
-        // We'll make this better later on :)
-        blogHub.server.getPostsForDefaultCategory().done(function () {
+        // Invoke the method on the server to subscribe to updates
+        blogHub.server.startNotificationsForPosts(categoryId).done(function () {
             console.log("Now subscribed to notification groups!");
         });
     });

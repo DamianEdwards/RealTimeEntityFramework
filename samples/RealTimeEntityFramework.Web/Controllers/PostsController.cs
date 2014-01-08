@@ -8,6 +8,7 @@ using System.Net;
 using System.Web;
 using System.Web.Mvc;
 using RealTimeEntityFramework.Web.Models;
+using RealTimeEntityFramework.Web.Models.ViewModels;
 
 namespace RealTimeEntityFramework.Web.Controllers
 {
@@ -16,17 +17,21 @@ namespace RealTimeEntityFramework.Web.Controllers
         private BlogDbContext db = new BlogDbContext();
 
         // GET: /Posts/
-        public async Task<ActionResult> Index()
+        public async Task<ActionResult> Index(int categoryId = 1)
         {
-            var posts = db.Posts.Include(p => p.Category);
-            if (!Request.IsAjaxRequest())
+            var viewModel = new PostsIndexViewModel
             {
-                return View("IndexAjax", await posts.ToListAsync());
-            }
-            else
-            {
-                return View("_IndexRows", await posts.ToListAsync());
-            }
+                CategoryId = categoryId,
+                Posts = await db.Posts.Where(p => p.CategoryId == categoryId).ToListAsync()
+            };
+
+            return View("IndexAjax", viewModel);
+        }
+
+        // GET: /Posts/IndexRows
+        public async Task<ActionResult> IndexRows(int categoryId = 1)
+        {
+            return View("_IndexRows", await db.Posts.Where(p => p.CategoryId == categoryId).ToListAsync());
         }
 
         // GET: /Posts/Details/5
@@ -36,18 +41,21 @@ namespace RealTimeEntityFramework.Web.Controllers
             {
                 return new HttpStatusCodeResult(HttpStatusCode.BadRequest);
             }
+
             Post post = await db.Posts.FindAsync(id);
+            
             if (post == null)
             {
                 return HttpNotFound();
             }
+            
             return View(post);
         }
 
         // GET: /Posts/Create
         public ActionResult Create()
         {
-            ViewBag.CategoryId = new SelectList(db.Categories, "Id", "Name");
+            ViewBag.CategoryId = new SelectList(db.Categories, "Id", "Name", selectedValue: 1);
             return View();
         }
 

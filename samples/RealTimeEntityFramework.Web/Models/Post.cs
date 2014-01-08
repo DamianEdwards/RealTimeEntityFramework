@@ -12,6 +12,7 @@ namespace RealTimeEntityFramework.Web.Models
 
         public string Title { get; set; }
         
+        [Display(Name="Created On")]
         public DateTimeOffset CreatedOn { get; set; }
         
         public DateTimeOffset PublishOn { get; set; }
