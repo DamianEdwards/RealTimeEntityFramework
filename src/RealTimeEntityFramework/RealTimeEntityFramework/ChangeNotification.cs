@@ -2,14 +2,12 @@
 using System.Collections.Generic;
 using System.Data.Entity;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Converters;
 
 namespace RealTimeEntityFramework
 {
-    internal struct ChangeNotification
+    public struct ChangeNotification
     {
         [JsonConverter(typeof(StringEnumConverter))]
         public ChangeScope Scope { get; set; }
@@ -21,11 +19,26 @@ namespace RealTimeEntityFramework
 
         public Type EntityType { get; set; }
 
-        public IEnumerable<string> EntityKeyNames { get; set; }
+        public Dictionary<string, object> EntityKeys { get; set; }
 
-        public IEnumerable<object> EntityKeyValues { get; set; }
+        internal static ChangeNotification Create(ChangeScope scope, EntityState entityState, ChangeDetails change, params string[] sourceFieldNames)
+        {
+            return Create(scope, ChangeTypeFromEntityState(entityState), change, sourceFieldNames);
+        }
 
-        public static ChangeType ChangeTypeFromEntityState(EntityState entityState)
+        internal static ChangeNotification Create(ChangeScope scope, ChangeType changeType, ChangeDetails change, params string[] sourceFieldNames)
+        {
+            return new ChangeNotification
+            {
+                Scope = scope,
+                ChangeType = ChangeType.Added,
+                SourceFieldNames = sourceFieldNames,
+                EntityType = change.Entity.GetType(),
+                EntityKeys = change.EntityKey.EntityKeyValues.ToDictionary(k => k.Key, k => k.Value)
+            };
+        }
+
+        private static ChangeType ChangeTypeFromEntityState(EntityState entityState)
         {
             switch (entityState)
             {
@@ -47,13 +60,13 @@ namespace RealTimeEntityFramework
         }
     }
 
-    internal enum ChangeScope
+    public enum ChangeScope
     {
         SpecificEntity,
         EntitySet
     }
 
-    internal enum ChangeType
+    public enum ChangeType
     {
         Added,
         Updated,

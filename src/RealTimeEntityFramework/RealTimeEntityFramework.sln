@@ -7,6 +7,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RealTimeEntityFramework", "
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RealTimeEntityFramework.Web", "..\..\samples\RealTimeEntityFramework.Web\RealTimeEntityFramework.Web.csproj", "{34286960-A0A5-4F33-BDB7-5AD9B74828D4}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RealTimeEntityFramework.SignalR", "RealTimeEntityFramework.SignalR\RealTimeEntityFramework.SignalR.csproj", "{41D24272-5927-487C-B554-20E1BF7A04DC}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -21,6 +23,10 @@ Global
 		{34286960-A0A5-4F33-BDB7-5AD9B74828D4}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{34286960-A0A5-4F33-BDB7-5AD9B74828D4}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{34286960-A0A5-4F33-BDB7-5AD9B74828D4}.Release|Any CPU.Build.0 = Release|Any CPU
+		{41D24272-5927-487C-B554-20E1BF7A04DC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{41D24272-5927-487C-B554-20E1BF7A04DC}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{41D24272-5927-487C-B554-20E1BF7A04DC}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{41D24272-5927-487C-B554-20E1BF7A04DC}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

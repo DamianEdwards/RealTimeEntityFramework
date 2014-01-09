@@ -1,22 +1,21 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Data.Entity;
+using System.Data.Entity.Core;
 using System.Data.Entity.Infrastructure;
 using System.Linq;
+using System.Linq.Expressions;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
 namespace RealTimeEntityFramework
 {
-    internal class DbContextChangeNotifier
+    public class DbContextChangeNotifier
     {
-        private static readonly ReaderWriterLockSlim _locker = new ReaderWriterLockSlim();
-        private static readonly Dictionary<Type, List<ISubscription>> _subscriptions = new Dictionary<Type, List<ISubscription>>();
-
         private readonly IDbContext _dbContext;
 
-        public DbContextChangeNotifier(IDbContext dbContext)
+        internal DbContextChangeNotifier(IDbContext dbContext)
         {
             if (dbContext == null)
             {
@@ -24,43 +23,10 @@ namespace RealTimeEntityFramework
             }
 
             _dbContext = dbContext;
+            OnChange += (_, __) => { };
         }
 
-        public static IDisposable Subscribe(Type dbContextType, Action<IEnumerable<ChangeDetails>> callback)
-        {
-            ValidateDbContextType(dbContextType);
-
-            var subscription = new Subscription(callback, s => Unsubscribe(dbContextType, s));
-
-            try
-            {
-                _locker.EnterWriteLock();
-
-                List<ISubscription> contextSubscriptions;
-
-                if (!_subscriptions.TryGetValue(dbContextType, out contextSubscriptions))
-                {
-                    contextSubscriptions = new List<ISubscription>();
-                    _subscriptions.Add(dbContextType, contextSubscriptions);
-                }
-
-                contextSubscriptions.Add(subscription);
-            }
-            finally
-            {
-                _locker.ExitWriteLock();
-            }
-
-            return subscription;
-        }
-
-        private static void ValidateDbContextType(Type dbContextType)
-        {
-            if (!typeof(DbContext).IsAssignableFrom(dbContextType))
-            {
-                throw new ArgumentException("The type provided for parameter 'dbContextType' must derive from System.Data.Entity.DbContext.", "dbContextType");
-            }
-        }
+        public event Action<string, ChangeNotification> OnChange;
 
         public int OnSaveChanges()
         {
@@ -83,7 +49,7 @@ namespace RealTimeEntityFramework
             var result = _dbContext.SaveChanges();
 
             // Notify the subscribers
-            NotifySubscribers(_dbContext.DbContextType, changes);
+            Notify(changes);
 
             if (resetChangeTracking)
             {
@@ -114,10 +80,10 @@ namespace RealTimeEntityFramework
             var result = await _dbContext.SaveChangesAsync(cancellationToken);
 
             // Get key information for any added entities
-            UpdateEntityKeys(changes);
+            SetEntityKeysOnAddedEntities(changes);
 
             // Notify the subscribers
-            NotifySubscribers(_dbContext.DbContextType, changes);
+            Notify(changes);
 
             if (resetChangeTracking)
             {
@@ -127,11 +93,48 @@ namespace RealTimeEntityFramework
             return result;
         }
 
-        private void UpdateEntityKeys(Dictionary<Type, List<ChangeDetails>> changes)
+        public string GetPrimaryKeyNotificationGroupName<TEntity>(params object[] keyValues) where TEntity : class
         {
-            var insertedEntities = changes.Values
-                .SelectMany(l => l)
-                .Where(change => change.EntityState == EntityState.Added);
+            return GetPrimaryKeyNotificationGroupName(typeof(TEntity).FullName, _dbContext.GetEntityKey<TEntity>(keyValues));
+        }
+
+        private static string GetPrimaryKeyNotificationGroupName(string entityTypeName, EntityKey entityKey)
+        {
+            if (entityKey != null && entityKey.EntityKeyValues != null)
+            {
+                // Build group name for entity key, format: [EntityTypeName]_PrimaryKey_[Key1Name]_[Key1Value]_[Key2Name]_[Key2Value]
+                var prefix = String.Format("{0}_PrimaryKey", entityTypeName);
+                return entityKey.EntityKeyValues.Aggregate(prefix, (name, k) => String.Format("{0}_{1}_{2}", name, k.Key, k.Value));
+            }
+
+            return null;
+        }
+
+        public IEnumerable<string> GetPredicateNotificationGroupNames<TEntity>(Expression<Func<TEntity, bool>> predicate)
+        {
+            // TODO: Support predicates with multiple compatible conditions, which result in multiple groups, e.g. p => p.CategoryId = categoryId && p.IsVisible
+
+            var valueExtractor = new PredicateExpressionValuesExtractor<TEntity>(_dbContext);
+            valueExtractor.Visit(predicate);
+
+            if (!valueExtractor.IsValid)
+            {
+                throw new InvalidOperationException("The predicate provided does not support change notifications.");
+            }
+
+            // Build group name for predicate value, format: [EntityTypeName]_Set_[FieldName]_[FieldValue]
+            var groupNamePrefix = String.Format("{0}_Set", typeof(TEntity).FullName);
+            foreach (var predicateField in valueExtractor.PredicateFields)
+            {
+                var groupName = String.Format("{0}_{1}_{2}", groupNamePrefix, predicateField.Key, predicateField.Value);
+
+                yield return groupName;
+            }
+        }
+
+        private void SetEntityKeysOnAddedEntities(List<ChangeDetails> changes)
+        {
+            var insertedEntities = changes.Where(change => change.EntityState == EntityState.Added);
             
             foreach (var change in insertedEntities)
             {
@@ -139,9 +142,9 @@ namespace RealTimeEntityFramework
             }
         }
 
-        private Dictionary<Type, List<ChangeDetails>> CaptureChanges()
+        private List<ChangeDetails> CaptureChanges()
         {
-            var changes = new Dictionary<Type, List<ChangeDetails>>();
+            var changes = new List<ChangeDetails>();
 
             if (!_dbContext.HasChanges())
             {
@@ -149,6 +152,7 @@ namespace RealTimeEntityFramework
             }
 
             var entries = _dbContext.ChangedEntries();
+
             foreach (var entry in entries)
             {
                 if (entry.State == EntityState.Unchanged || entry.State == EntityState.Detached)
@@ -157,13 +161,6 @@ namespace RealTimeEntityFramework
                 }
 
                 var entityType = entry.Entity.GetType();
-
-                List<ChangeDetails> typeChanges;
-                if (!changes.TryGetValue(entityType, out typeChanges))
-                {
-                    typeChanges = new List<ChangeDetails>();
-                    changes.Add(entityType, typeChanges);
-                }
 
                 var entityKey = _dbContext.GetEntityKey(entry.Entity);
                 var changeDetails = new ChangeDetails(entry.State, entityKey, entry.Entity);
@@ -181,63 +178,118 @@ namespace RealTimeEntityFramework
                     }
                 }
 
-                typeChanges.Add(changeDetails);
+                changes.Add(changeDetails);
             }
+
             return changes;
         }
 
-        private static void NotifySubscribers(Type dbContextType, Dictionary<Type, List<ChangeDetails>> changes)
+        private void Notify(List<ChangeDetails> changes)
         {
-            ValidateDbContextType(dbContextType);
-
-            try
+            // Inspect the changes and push update notifications to generated groups
+            foreach (var change in changes)
             {
-                _locker.EnterReadLock();
+                // Notify subscribers listening for changes to this specific entity
+                NotifyPrimaryKeyGroup(change);
 
-                List<ISubscription> contextSubscriptions;
-
-                if (!_subscriptions.TryGetValue(dbContextType, out contextSubscriptions))
-                {
-                    return;
-                }
-
-                foreach (var kvp in changes)
-                {
-                    var entityType = kvp.Key;
-                    var entityTypeChanges = kvp.Value;
-
-                    foreach (var subscription in contextSubscriptions)
-                    {
-                        subscription.Notify(entityTypeChanges);
-                    }
-                }
-            }
-            finally
-            {
-                _locker.ExitReadLock();
+                // Notify subscribers listening for changes to sets which contain/contained this entity
+                NotifyPrimaryKeyPredicateGroups(change);
+                NotifyForeignKeyPredicateGroups(change);
+                NotifyAnnotatedPropertyPredicateGroups(change);
             }
         }
 
-        private static void Unsubscribe(Type dbContextType, ISubscription subscription)
+        private void NotifyPrimaryKeyGroup(ChangeDetails change)
         {
-            ValidateDbContextType(dbContextType);
-
-            try
+            if (change.EntityState != EntityState.Added)
             {
-                _locker.EnterWriteLock();
+                var groupName = GetPrimaryKeyNotificationGroupName(change.Entity.GetType().FullName, change.EntityKey);
+                var notification = ChangeNotification.Create(
+                    ChangeScope.SpecificEntity,
+                    change.EntityState,
+                    change);
+                OnChange(groupName, notification);
+            }
+        }
 
-                List<ISubscription> contextSubscriptions;
+        private void NotifyPrimaryKeyPredicateGroups(ChangeDetails change)
+        {
 
-                if (!_subscriptions.TryGetValue(dbContextType, out contextSubscriptions))
+        }
+
+        private void NotifyForeignKeyPredicateGroups(ChangeDetails change)
+        {
+            // Foreign keys, [EntityTypeName]_Set_[ForeignKeyName]_[KeyValue]
+            var foreignKeyGroupNamePrefix = String.Format("{0}_Set", change.Entity.GetType().FullName);
+
+            var entityMetadata = _dbContext.GetEntityModelMetadata(change.Entity.GetType());
+
+            // TODO: Support multi-property foreign keys
+            var foreignKeys = entityMetadata.NavigationProperties
+                .Select(np => np.GetDependentProperties().FirstOrDefault())
+                .Where(p => p != null);
+
+            string groupName;
+            ChangeNotification notification;
+
+            foreach (var key in foreignKeys)
+            {
+                var keyProperty = _dbContext.Entry(change.Entity).Property(key.Name);
+
+                if (keyProperty.ParentProperty != null)
                 {
-                    return;
+                    // This is a complex property so umm, yeah, no idea what we should do here :S
+                    continue;
                 }
 
-                contextSubscriptions.Remove(subscription);
+                if (change.EntityState == EntityState.Added ||
+                    change.EntityState == EntityState.Modified && change.PropertyChanges.Any(c => c.PropertyName == key.Name))
+                {
+                    // Notify the group for the current set this entity was added to
+                    groupName = String.Format("{0}_{1}_{2}", foreignKeyGroupNamePrefix, keyProperty.Name, keyProperty.CurrentValue);
+                    notification = ChangeNotification.Create(
+                        ChangeScope.EntitySet,
+                        ChangeType.Added,
+                        change,
+                        key.Name);
+                    OnChange(groupName, notification);
+
+                    if (change.EntityState == EntityState.Modified)
+                    {
+                        // Notify the group for the original set this entity was removed from
+                        groupName = String.Format("{0}_{1}_{2}", foreignKeyGroupNamePrefix, keyProperty.Name, keyProperty.OriginalValue);
+                        notification = ChangeNotification.Create(
+                            ChangeScope.EntitySet,
+                            ChangeType.Deleted,
+                            change,
+                            key.Name);
+                        OnChange(groupName, notification);
+                    }
+                }
+                else
+                {
+                    // The key didn't change or the entity was deleted so just tell the current set group that an entity changed
+                    groupName = String.Format("{0}_{1}_{2}", foreignKeyGroupNamePrefix, keyProperty.Name, keyProperty.CurrentValue);
+                    notification = ChangeNotification.Create(
+                        ChangeScope.EntitySet,
+                        ChangeType.Updated,
+                        change,
+                        key.Name);
+                    OnChange(groupName, notification);
+                }
             }
-            finally
+        }
+
+        private void NotifyAnnotatedPropertyPredicateGroups(ChangeDetails change)
+        {
+            // TODO: Support notifications for changes to explicitly annotated primitive properties
+        }
+
+        private static void ValidateDbContextType(Type dbContextType)
+        {
+            if (!typeof(DbContext).IsAssignableFrom(dbContextType))
             {
-                _locker.ExitWriteLock();
+                throw new ArgumentException("The type provided for parameter 'dbContextType' must derive from System.Data.Entity.DbContext.", "dbContextType");
             }
         }
     }

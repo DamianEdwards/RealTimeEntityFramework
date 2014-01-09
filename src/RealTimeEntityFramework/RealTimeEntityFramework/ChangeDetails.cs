@@ -2,12 +2,10 @@
 using System.Collections.Generic;
 using System.Data.Entity;
 using System.Data.Entity.Core;
-using System.Linq;
-using System.Text;
 
 namespace RealTimeEntityFramework
 {
-    public class ChangeDetails
+    internal class ChangeDetails
     {
         public ChangeDetails(EntityState entityState, EntityKey entityKey, object entity)
         {

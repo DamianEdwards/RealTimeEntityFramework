@@ -203,17 +203,21 @@
     <Content Include="Views\Posts\_IndexPostsHeaderRow.cshtml" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\src\RealTimeEntityFramework\RealTimeEntityFramework\RealTimeEntityFramework.csproj">
-      <Project>{8283b70d-ca98-4c0c-85d9-b9072b08cc25}</Project>
-      <Name>RealTimeEntityFramework</Name>
-    </ProjectReference>
-  </ItemGroup>
-  <ItemGroup>
     <Content Include="fonts\glyphicons-halflings-regular.woff" />
     <Content Include="fonts\glyphicons-halflings-regular.ttf" />
     <Content Include="fonts\glyphicons-halflings-regular.eot" />
     <Content Include="packages.config" />
     <None Include="Project_Readme.html" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\RealTimeEntityFramework\RealTimeEntityFramework.SignalR\RealTimeEntityFramework.SignalR.csproj">
+      <Project>{41d24272-5927-487c-b554-20e1bf7a04dc}</Project>
+      <Name>RealTimeEntityFramework.SignalR</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\..\src\RealTimeEntityFramework\RealTimeEntityFramework\RealTimeEntityFramework.csproj">
+      <Project>{8283b70d-ca98-4c0c-85d9-b9072b08cc25}</Project>
+      <Name>RealTimeEntityFramework</Name>
+    </ProjectReference>
   </ItemGroup>
   <PropertyGroup>
     <VisualStudioVersion Condition="'$(VisualStudioVersion)' == ''">10.0</VisualStudioVersion>

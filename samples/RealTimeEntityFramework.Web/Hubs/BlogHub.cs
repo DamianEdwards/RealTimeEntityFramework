@@ -8,6 +8,22 @@ namespace RealTimeEntityFramework.Web.Hubs
 {
     public class BlogHub : Hub
     {
+        public void StartNotificationsForPosts(int categoryId)
+        {
+            using (var db = new BlogDbContext())
+            {
+                db.StartNotifications(Context, db.Posts, p => p.CategoryId == categoryId);
+            }
+        }
+
+        public void StopNotificationsForPosts(int categoryId)
+        {
+            using (var db = new BlogDbContext())
+            {
+                db.StopNotifications(Context, db.Posts, p => p.CategoryId == categoryId);
+            }
+        }
+
         public Post GetPost(int id)
         {
             using (var db = new BlogDbContext())
@@ -40,22 +56,6 @@ namespace RealTimeEntityFramework.Web.Hubs
             {
                 return db.SelectWithNotifications(Context, db.Posts, p => p.PublishOn.Month == month)
                          .ToList();
-            }
-        }
-
-        public void StartNotificationsForPosts(int categoryId)
-        {
-            using (var db = new BlogDbContext())
-            {
-                db.StartNotifications(Context, db.Posts, p => p.CategoryId == categoryId);
-            }
-        }
-
-        public void StopNotificationsForPosts(int categoryId)
-        {
-            using (var db = new BlogDbContext())
-            {
-                db.StopNotifications(Context, db.Posts, p => p.CategoryId == categoryId);
             }
         }
     }

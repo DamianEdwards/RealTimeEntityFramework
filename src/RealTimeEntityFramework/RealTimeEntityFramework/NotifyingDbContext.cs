@@ -1,13 +1,14 @@
 ﻿using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Data.Common;
 using System.Data.Entity;
 using System.Data.Entity.Core;
+using System.Data.Entity.Core.Metadata.Edm;
 using System.Data.Entity.Core.Objects;
 using System.Data.Entity.Infrastructure;
 using System.Linq;
-using System.Text;
+using System.Linq.Expressions;
+using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -18,8 +19,8 @@ namespace RealTimeEntityFramework
     /// </summary>
     public abstract class NotifyingDbContext : DbContext, IDbContext
     {
-        private DbContextChangeNotifier _changeNotifier;
-
+        private ObjectContext _objectContext;
+        
         public NotifyingDbContext()
             : base()
         {
@@ -62,14 +63,18 @@ namespace RealTimeEntityFramework
             Initialize();
         }
 
+        protected DbContextChangeNotifier ChangeNotifier { private set; get; }
+
         private void Initialize()
         {
-            _changeNotifier = new DbContextChangeNotifier(this);
+            _objectContext = ((IObjectContextAdapter)this).ObjectContext;
+            ChangeNotifier = new DbContextChangeNotifier(this);
+            ChangeNotifier.OnChange += OnChange;
         }
 
         public override int SaveChanges()
         {
-            return _changeNotifier.OnSaveChanges();
+            return ChangeNotifier.OnSaveChanges();
         }
 
         public override Task<int> SaveChangesAsync()
@@ -79,23 +84,10 @@ namespace RealTimeEntityFramework
 
         public override Task<int> SaveChangesAsync(CancellationToken cancellationToken)
         {
-            return _changeNotifier.OnSaveChangesAsync(cancellationToken);
+            return ChangeNotifier.OnSaveChangesAsync(cancellationToken);
         }
 
-        /// <summary>
-        /// Adds a callback to be invoked when changes are saved by the context.
-        /// </summary>
-        /// <param name="callback">The callback to be invoked.</param>
-        /// <returns>An object that when disposed cancels the subscription.</returns>
-        public static IDisposable Subscribe(Type dbContextType, Action<IEnumerable<ChangeDetails>> callback)
-        {
-            return DbContextChangeNotifier.Subscribe(dbContextType, callback);
-        }
-
-        Type IDbContext.DbContextType
-        {
-            get { return GetType(); }
-        }
+        protected abstract void OnChange(string groupName, ChangeNotification change);
 
         bool IDbContext.AutoDetectChangesEnabled
         {
@@ -139,8 +131,26 @@ namespace RealTimeEntityFramework
             var objectContext = ((IObjectContextAdapter)this).ObjectContext;
             var objectStateEntry = objectContext.ObjectStateManager.GetObjectStateEntry(entity);
             var entityKey = objectStateEntry != null ? objectStateEntry.EntityKey : null;
-
+            
             return entityKey;
+        }
+
+        EntityKey IDbContext.GetEntityKey<TEntity>(params object[] keyValues)
+        {
+            var objectSet = _objectContext.CreateObjectSet<TEntity>();
+            var keyNames = objectSet.EntitySet.ElementType.KeyMembers.Select(k => k.Name);
+
+            return new EntityKey(objectSet.EntitySet.Name, keyNames.Zip(keyValues, (k, v) => new EntityKeyMember(k, v)));
+        }
+
+        EntityType IDbContext.GetEntityModelMetadata(Type entityType)
+        {
+            return _objectContext.GetEntityModelMetadata(entityType);
+        }
+
+        DbEntityEntry IDbContext.Entry(object entity)
+        {
+            return Entry(entity);
         }
     }
 }
