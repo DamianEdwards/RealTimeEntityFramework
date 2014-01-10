@@ -20,6 +20,7 @@ namespace RealTimeEntityFramework
     public abstract class NotifyingDbContext : DbContext, IDbContext
     {
         private ObjectContext _objectContext;
+        private DbContextChangeNotifier _changeNotifier;
         
         public NotifyingDbContext()
             : base()
@@ -63,18 +64,29 @@ namespace RealTimeEntityFramework
             Initialize();
         }
 
-        protected DbContextChangeNotifier ChangeNotifier { private set; get; }
+        public bool ChangeNotificationsEnabled { get; set; }
+
+        protected EntityNotificationGroupManager NotificationGroupManager { get; private set; }
 
         private void Initialize()
         {
             _objectContext = ((IObjectContextAdapter)this).ObjectContext;
-            ChangeNotifier = new DbContextChangeNotifier(this);
-            ChangeNotifier.OnChange += OnChange;
+            ChangeNotificationsEnabled = true;
+            NotificationGroupManager = new EntityNotificationGroupManager();
+            _changeNotifier = new DbContextChangeNotifier(this, NotificationGroupManager);
+            _changeNotifier.OnChange += OnChange;
         }
 
         public override int SaveChanges()
         {
-            return ChangeNotifier.OnSaveChanges();
+            if (ChangeNotificationsEnabled)
+            {
+                return _changeNotifier.OnSaveChanges();
+            }
+            else
+            {
+                return base.SaveChanges();
+            }
         }
 
         public override Task<int> SaveChangesAsync()
@@ -84,7 +96,14 @@ namespace RealTimeEntityFramework
 
         public override Task<int> SaveChangesAsync(CancellationToken cancellationToken)
         {
-            return ChangeNotifier.OnSaveChangesAsync(cancellationToken);
+            if (ChangeNotificationsEnabled)
+            {
+                return _changeNotifier.OnSaveChangesAsync(cancellationToken);
+            }
+            else
+            {
+                return base.SaveChangesAsync(cancellationToken);
+            }
         }
 
         protected abstract void OnChange(string groupName, ChangeNotification change);

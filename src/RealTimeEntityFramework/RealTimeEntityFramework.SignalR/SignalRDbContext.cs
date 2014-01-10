@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Data.Common;
 using System.Data.Entity;
 using System.Data.Entity.Core.Objects;
@@ -60,52 +61,66 @@ namespace RealTimeEntityFramework.SignalR
             _groupManager = groupManager;
         }
 
-        public TEntity FindWithNotifications<TEntity>(string connectionId, DbSet<TEntity> entities, params object[] keyValues) where TEntity : class
-        {
-            StartNotifications<TEntity>(connectionId, keyValues);
+        //public TEntity FindWithNotifications<TEntity>(string connectionId, DbSet<TEntity> entities, params object[] keyValues) where TEntity : class
+        //{
+        //    StartNotifications<TEntity>(connectionId, keyValues);
 
-            return entities.Find(keyValues);
+        //    return entities.Find(keyValues);
+        //}
+
+        //public IQueryable<TEntity> SelectWithNotifications<TEntity>(string connectionId, DbSet<TEntity> entities, Expression<Func<TEntity, bool>> predicate) where TEntity : class
+        //{
+        //    StartNotifications(connectionId, predicate);
+
+        //    return entities.Where(predicate);
+        //}
+
+        //public void StartNotifications<TEntity>(string connectionId, params object[] keyValues) where TEntity : class
+        //{
+        //    var group = ChangeNotifier.GetPrimaryKeyNotificationGroupName<TEntity>(keyValues);
+
+        //    _groupManager.Add(connectionId, group);
+        //}
+
+        //public void StartNotifications<TEntity>(string connectionId, Expression<Func<TEntity, bool>> predicate) where TEntity : class
+        //{
+        //    var groups = ChangeNotifier.GetPredicateNotificationGroupNames(predicate);
+
+        //    foreach (var group in groups)
+        //    {
+        //        _groupManager.Add(connectionId, group);
+        //    }
+        //}
+
+        public void StartNotifications<TEntity>(string connectionId, IDictionary<string, object> properties) where TEntity : class
+        {
+            var groupName = NotificationGroupManager.GetGroupNameForEntityProperties<TEntity>(properties);
+
+            _groupManager.Add(connectionId, groupName);
         }
 
-        public IQueryable<TEntity> SelectWithNotifications<TEntity>(string connectionId, DbSet<TEntity> entities, Expression<Func<TEntity, bool>> predicate) where TEntity : class
+        //public void StopNotifications<TEntity>(string connectionId, params object[] keyValues) where TEntity : class
+        //{
+        //    var group = ChangeNotifier.GetPrimaryKeyNotificationGroupName<TEntity>(keyValues);
+
+        //    _groupManager.Remove(connectionId, group);
+        //}
+
+        //public void StopNotifications<TEntity>(string connectionId, Expression<Func<TEntity, bool>> predicate) where TEntity : class
+        //{
+        //    var groups = ChangeNotifier.GetPredicateNotificationGroupNames(predicate);
+
+        //    foreach (var group in groups)
+        //    {
+        //        _groupManager.Remove(connectionId, group);
+        //    }
+        //}
+
+        public void StopNotifications<TEntity>(string connectionId, IDictionary<string, object> properties) where TEntity : class
         {
-            StartNotifications(connectionId, predicate);
+            var groupName = NotificationGroupManager.GetGroupNameForEntityProperties<TEntity>(properties);
 
-            return entities.Where(predicate);
-        }
-
-        public void StartNotifications<TEntity>(string connectionId, params object[] keyValues) where TEntity : class
-        {
-            var group = ChangeNotifier.GetPrimaryKeyNotificationGroupName<TEntity>(keyValues);
-
-            _groupManager.Add(connectionId, group);
-        }
-
-        public void StartNotifications<TEntity>(string connectionId, Expression<Func<TEntity, bool>> predicate) where TEntity : class
-        {
-            var groups = ChangeNotifier.GetPredicateNotificationGroupNames(predicate);
-
-            foreach (var group in groups)
-            {
-                _groupManager.Add(connectionId, group);
-            }
-        }
-
-        public void StopNotifications<TEntity>(string connectionId, params object[] keyValues) where TEntity : class
-        {
-            var group = ChangeNotifier.GetPrimaryKeyNotificationGroupName<TEntity>(keyValues);
-
-            _groupManager.Remove(connectionId, group);
-        }
-
-        public void StopNotifications<TEntity>(string connectionId, Expression<Func<TEntity, bool>> predicate) where TEntity : class
-        {
-            var groups = ChangeNotifier.GetPredicateNotificationGroupNames(predicate);
-
-            foreach (var group in groups)
-            {
-                _groupManager.Remove(connectionId, group);
-            }
+            _groupManager.Remove(connectionId, groupName);
         }
     }
 }

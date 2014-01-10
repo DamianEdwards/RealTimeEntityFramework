@@ -14,8 +14,9 @@ namespace RealTimeEntityFramework
     public class DbContextChangeNotifier
     {
         private readonly IDbContext _dbContext;
+        private readonly EntityNotificationGroupManager _notificationGroupManager;
 
-        internal DbContextChangeNotifier(IDbContext dbContext)
+        internal DbContextChangeNotifier(IDbContext dbContext, EntityNotificationGroupManager notificationGroupManager)
         {
             if (dbContext == null)
             {
@@ -23,6 +24,8 @@ namespace RealTimeEntityFramework
             }
 
             _dbContext = dbContext;
+            _notificationGroupManager = notificationGroupManager;
+
             OnChange += (_, __) => { };
         }
 
@@ -165,19 +168,31 @@ namespace RealTimeEntityFramework
                 var entityKey = _dbContext.GetEntityKey(entry.Entity);
                 var changeDetails = new ChangeDetails(entry.State, entityKey, entry.Entity);
 
+                // Capture the property details
+                IEnumerable<PropertyDetails> properties = null;
+
                 if (entry.State == EntityState.Modified)
                 {
-                    // Capture the actual property changes
-                    var changedProperties = entry.OriginalValues.PropertyNames
-                        .Zip(entry.CurrentValues.PropertyNames, (c, o) => new PropertyChange(c, entry.OriginalValues[c], entry.CurrentValues[c]))
-                        .Where(c => !Object.Equals(c.CurrentValue, c.OriginalValue));
-
-                    foreach (var p in changedProperties)
-                    {
-                        changeDetails.PropertyChanges.Add(p);
-                    }
+                    properties = entry.OriginalValues.PropertyNames
+                        .Zip(entry.CurrentValues.PropertyNames, (c, o) =>
+                            new PropertyDetails(c, entry.OriginalValues[c], entry.CurrentValues[c]));
+                }
+                else if (entry.State == EntityState.Added)
+                {
+                    properties = entry.CurrentValues.PropertyNames
+                        .Select(p => new PropertyDetails(p, null, entry.CurrentValues[p]));
+                }
+                else if (entry.State == EntityState.Deleted)
+                {
+                    properties = entry.OriginalValues.PropertyNames
+                        .Select(p => new PropertyDetails(p, null, entry.OriginalValues[p]));
                 }
 
+                foreach (var p in properties)
+                {
+                    changeDetails.Properties.Add(p);
+                }
+                
                 changes.Add(changeDetails);
             }
 
@@ -189,107 +204,45 @@ namespace RealTimeEntityFramework
             // Inspect the changes and push update notifications to generated groups
             foreach (var change in changes)
             {
-                // Notify subscribers listening for changes to this specific entity
-                NotifyPrimaryKeyGroup(change);
+                var notificationGroups = _notificationGroupManager.GetGroupsForEntity(change.Entity.GetType());
 
-                // Notify subscribers listening for changes to sets which contain/contained this entity
-                NotifyPrimaryKeyPredicateGroups(change);
-                NotifyForeignKeyPredicateGroups(change);
-                NotifyAnnotatedPropertyPredicateGroups(change);
-            }
-        }
-
-        private void NotifyPrimaryKeyGroup(ChangeDetails change)
-        {
-            if (change.EntityState != EntityState.Added)
-            {
-                var groupName = GetPrimaryKeyNotificationGroupName(change.Entity.GetType().FullName, change.EntityKey);
-                var notification = ChangeNotification.Create(
-                    ChangeScope.SpecificEntity,
-                    change.EntityState,
-                    change);
-                OnChange(groupName, notification);
-            }
-        }
-
-        private void NotifyPrimaryKeyPredicateGroups(ChangeDetails change)
-        {
-
-        }
-
-        private void NotifyForeignKeyPredicateGroups(ChangeDetails change)
-        {
-            // Foreign keys, [EntityTypeName]_Set_[ForeignKeyName]_[KeyValue]
-            var foreignKeyGroupNamePrefix = String.Format("{0}_Set", change.Entity.GetType().FullName);
-
-            var entityMetadata = _dbContext.GetEntityModelMetadata(change.Entity.GetType());
-
-            // TODO: Support multi-property foreign keys
-            var foreignKeys = entityMetadata.NavigationProperties
-                .Select(np => np.GetDependentProperties().FirstOrDefault())
-                .Where(p => p != null);
-
-            string groupName;
-            ChangeNotification notification;
-
-            foreach (var key in foreignKeys)
-            {
-                var keyProperty = _dbContext.Entry(change.Entity).Property(key.Name);
-
-                if (keyProperty.ParentProperty != null)
+                foreach (var group in notificationGroups)
                 {
-                    // This is a complex property so umm, yeah, no idea what we should do here :S
-                    continue;
-                }
+                    var groupProperties = change.Properties.Where(c => group.PropertyNames.Contains(c.PropertyName));
 
-                if (change.EntityState == EntityState.Added ||
-                    change.EntityState == EntityState.Modified && change.PropertyChanges.Any(c => c.PropertyName == key.Name))
-                {
-                    // Notify the group for the current set this entity was added to
-                    groupName = String.Format("{0}_{1}_{2}", foreignKeyGroupNamePrefix, keyProperty.Name, keyProperty.CurrentValue);
-                    notification = ChangeNotification.Create(
-                        ChangeScope.EntitySet,
-                        ChangeType.Added,
-                        change,
-                        key.Name);
-                    OnChange(groupName, notification);
-
-                    if (change.EntityState == EntityState.Modified)
+                    if (change.EntityState == EntityState.Added ||
+                        change.EntityState == EntityState.Modified && groupProperties.Any(p => p.IsChanged))
                     {
-                        // Notify the group for the original set this entity was removed from
-                        groupName = String.Format("{0}_{1}_{2}", foreignKeyGroupNamePrefix, keyProperty.Name, keyProperty.OriginalValue);
-                        notification = ChangeNotification.Create(
-                            ChangeScope.EntitySet,
-                            ChangeType.Deleted,
-                            change,
-                            key.Name);
+                        // Notify the group for the current set this entity was added to
+                        var groupName = group.GetGroupName(groupProperties.Select(p => p.CurrentValue));
+                        var notification = ChangeNotification.Create(
+                            ChangeType.Added,
+                            change);
+
+                        OnChange(groupName, notification);
+
+                        if (change.EntityState == EntityState.Modified)
+                        {
+                            // Notify the group for the original set this entity was removed from
+                            groupName = group.GetGroupName(groupProperties.Select(p => p.OriginalValue));
+                            notification = ChangeNotification.Create(
+                                ChangeType.Deleted,
+                                change);
+
+                            OnChange(groupName, notification);
+                        }
+                    }
+                    else
+                    {
+                        // No notication group properties changed or the entity was deleted so just tell the current set group that an entity changed
+                        var groupName = group.GetGroupName(groupProperties.Select(p => p.CurrentValue));
+                        var notification = ChangeNotification.Create(
+                            change.EntityState,
+                            change);
+
                         OnChange(groupName, notification);
                     }
                 }
-                else
-                {
-                    // The key didn't change or the entity was deleted so just tell the current set group that an entity changed
-                    groupName = String.Format("{0}_{1}_{2}", foreignKeyGroupNamePrefix, keyProperty.Name, keyProperty.CurrentValue);
-                    notification = ChangeNotification.Create(
-                        ChangeScope.EntitySet,
-                        ChangeType.Updated,
-                        change,
-                        key.Name);
-                    OnChange(groupName, notification);
-                }
-            }
-        }
-
-        private void NotifyAnnotatedPropertyPredicateGroups(ChangeDetails change)
-        {
-            // TODO: Support notifications for changes to explicitly annotated primitive properties
-        }
-
-        private static void ValidateDbContextType(Type dbContextType)
-        {
-            if (!typeof(DbContext).IsAssignableFrom(dbContextType))
-            {
-                throw new ArgumentException("The type provided for parameter 'dbContextType' must derive from System.Data.Entity.DbContext.", "dbContextType");
             }
         }
     }

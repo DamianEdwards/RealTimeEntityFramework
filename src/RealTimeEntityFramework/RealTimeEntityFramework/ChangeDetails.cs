@@ -9,8 +9,7 @@ namespace RealTimeEntityFramework
     {
         public ChangeDetails(EntityState entityState, EntityKey entityKey, object entity)
         {
-            if (entityState == EntityState.Detached
-                || entityState == EntityState.Unchanged)
+            if (entityState == EntityState.Detached || entityState == EntityState.Unchanged)
             {
                 throw new ArgumentException("entityState");
             }
@@ -18,7 +17,7 @@ namespace RealTimeEntityFramework
             EntityState = entityState;
             EntityKey = entityKey;
             Entity = entity;
-            PropertyChanges = new List<PropertyChange>();
+            Properties = new List<PropertyDetails>();
         }
 
         public EntityState EntityState { get; private set; }
@@ -27,12 +26,12 @@ namespace RealTimeEntityFramework
 
         public object Entity { get; private set; }
 
-        public IList<PropertyChange> PropertyChanges { get; private set; }
+        public IList<PropertyDetails> Properties { get; private set; }
     }
 
-    public class PropertyChange
+    public class PropertyDetails
     {
-        public PropertyChange(string propertyName, object originalValue, object currentValue)
+        public PropertyDetails(string propertyName, object originalValue, object currentValue)
         {
             PropertyName = propertyName;
             OriginalValue = originalValue;
@@ -44,5 +43,10 @@ namespace RealTimeEntityFramework
         public object OriginalValue { get; set; }
         
         public object CurrentValue { get; set; }
+
+        public bool IsChanged
+        {
+            get { return OriginalValue != CurrentValue; }
+        }
     }
 }

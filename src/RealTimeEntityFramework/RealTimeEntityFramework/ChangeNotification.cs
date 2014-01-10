@@ -10,9 +10,6 @@ namespace RealTimeEntityFramework
     public struct ChangeNotification
     {
         [JsonConverter(typeof(StringEnumConverter))]
-        public ChangeScope Scope { get; set; }
-
-        [JsonConverter(typeof(StringEnumConverter))]
         public ChangeType ChangeType { get; set; }
 
         public IEnumerable<string> SourceFieldNames { get; set; }
@@ -21,16 +18,15 @@ namespace RealTimeEntityFramework
 
         public Dictionary<string, object> EntityKeys { get; set; }
 
-        internal static ChangeNotification Create(ChangeScope scope, EntityState entityState, ChangeDetails change, params string[] sourceFieldNames)
+        internal static ChangeNotification Create(EntityState entityState, ChangeDetails change, params string[] sourceFieldNames)
         {
-            return Create(scope, ChangeTypeFromEntityState(entityState), change, sourceFieldNames);
+            return Create(ChangeTypeFromEntityState(entityState), change, sourceFieldNames);
         }
 
-        internal static ChangeNotification Create(ChangeScope scope, ChangeType changeType, ChangeDetails change, params string[] sourceFieldNames)
+        internal static ChangeNotification Create(ChangeType changeType, ChangeDetails change, params string[] sourceFieldNames)
         {
             return new ChangeNotification
             {
-                Scope = scope,
                 ChangeType = ChangeType.Added,
                 SourceFieldNames = sourceFieldNames,
                 EntityType = change.Entity.GetType(),
@@ -58,12 +54,6 @@ namespace RealTimeEntityFramework
 
             throw new ArgumentException("entityState");
         }
-    }
-
-    public enum ChangeScope
-    {
-        SpecificEntity,
-        EntitySet
     }
 
     public enum ChangeType

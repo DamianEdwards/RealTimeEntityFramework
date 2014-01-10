@@ -16,7 +16,7 @@
     <thead>
         <tr>
             <th>
-                @Html.DisplayNameFor(Model.Posts, post => post.Category.Name)
+                Category
             </th>
             <th>
                 @Html.DisplayNameFor(Model.Posts, post => post.Title)
@@ -30,7 +30,7 @@
             <th>
                 @Html.DisplayNameFor(Model.Posts, post => post.Content)
             </th>
-            <th></th>
+            <th><!-- Actions --></th>
         </tr>
     </thead>
     <tbody id="postsBody" data-contentUrl="@Url.Action("IndexRows")" data-categoryId="@Model.CategoryId">

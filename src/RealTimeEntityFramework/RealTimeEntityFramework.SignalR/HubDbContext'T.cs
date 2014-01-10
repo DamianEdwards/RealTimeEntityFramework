@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Data.Common;
 using System.Data.Entity;
 using System.Data.Entity.Core.Objects;
@@ -106,34 +107,44 @@ namespace RealTimeEntityFramework.SignalR
 
         public string ClientEntityUpdatedMethodName { get; set; }
 
-        public TEntity FindWithNotifications<TEntity>(HubCallerContext hubContext, DbSet<TEntity> entities, params object[] keyValues) where TEntity : class
+        //public TEntity FindWithNotifications<TEntity>(HubCallerContext hubContext, DbSet<TEntity> entities, params object[] keyValues) where TEntity : class
+        //{
+        //    return FindWithNotifications(hubContext.ConnectionId, entities, keyValues);
+        //}
+
+        //public IQueryable<TEntity> SelectWithNotifications<TEntity>(HubCallerContext hubContext, DbSet<TEntity> entities, Expression<Func<TEntity, bool>> predicate) where TEntity : class
+        //{
+        //    return SelectWithNotifications(hubContext.ConnectionId, entities, predicate);
+        //}
+
+        //public void StartNotifications<TEntity>(HubCallerContext hubContext, DbSet<TEntity> entities, params object[] keyValues) where TEntity : class
+        //{
+        //    StartNotifications<TEntity>(hubContext.ConnectionId, keyValues);
+        //}
+
+        //public void StartNotifications<TEntity>(HubCallerContext hubContext, DbSet<TEntity> entities, Expression<Func<TEntity, bool>> predicate) where TEntity : class
+        //{
+        //    StartNotifications<TEntity>(hubContext.ConnectionId, predicate);
+        //}
+
+        public void StartNotifications<TEntity>(HubCallerContext hubContext, DbSet<TEntity> entities, IDictionary<string, object> properties) where TEntity : class
         {
-            return FindWithNotifications(hubContext.ConnectionId, entities, keyValues);
+            StartNotifications<TEntity>(hubContext.ConnectionId, properties);
         }
 
-        public IQueryable<TEntity> SelectWithNotifications<TEntity>(HubCallerContext hubContext, DbSet<TEntity> entities, Expression<Func<TEntity, bool>> predicate) where TEntity : class
-        {
-            return SelectWithNotifications(hubContext.ConnectionId, entities, predicate);
-        }
+        //public void StopNotifications<TEntity>(HubCallerContext hubContext, params object[] keyValues) where TEntity : class
+        //{
+        //    StopNotifications<TEntity>(hubContext.ConnectionId, keyValues);
+        //}
 
-        public void StartNotifications<TEntity>(HubCallerContext hubContext, DbSet<TEntity> entities, params object[] keyValues) where TEntity : class
-        {
-            StartNotifications<TEntity>(hubContext.ConnectionId, keyValues);
-        }
+        //public void StopNotifications<TEntity>(HubCallerContext hubContext, DbSet<TEntity> entities, Expression<Func<TEntity, bool>> predicate) where TEntity : class
+        //{
+        //    StopNotifications<TEntity>(hubContext.ConnectionId, predicate);
+        //}
 
-        public void StartNotifications<TEntity>(HubCallerContext hubContext, DbSet<TEntity> entities, Expression<Func<TEntity, bool>> predicate) where TEntity : class
+        public void StopNotifications<TEntity>(HubCallerContext hubContext, DbSet<TEntity> entities, IDictionary<string, object> properties) where TEntity : class
         {
-            StartNotifications<TEntity>(hubContext.ConnectionId, predicate);
-        }
-
-        public void StopNotifications<TEntity>(HubCallerContext hubContext, params object[] keyValues) where TEntity : class
-        {
-            StopNotifications<TEntity>(hubContext.ConnectionId, keyValues);
-        }
-
-        public void StopNotifications<TEntity>(HubCallerContext hubContext, DbSet<TEntity> entities, Expression<Func<TEntity, bool>> predicate) where TEntity : class
-        {
-            StopNotifications<TEntity>(hubContext.ConnectionId, predicate);
+            StopNotifications<TEntity>(hubContext.ConnectionId, properties);
         }
 
         protected override void OnChange(string groupName, ChangeNotification change)

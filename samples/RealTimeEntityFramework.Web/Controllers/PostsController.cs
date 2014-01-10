@@ -22,7 +22,9 @@ namespace RealTimeEntityFramework.Web.Controllers
             var viewModel = new PostsIndexViewModel
             {
                 CategoryId = categoryId,
-                Posts = await db.Posts.Where(p => p.CategoryId == categoryId).ToListAsync()
+                Posts = await db.Posts.Where(p => p.CategoryId == categoryId)
+                    .Include(p => p.Category)
+                    .ToListAsync()
             };
 
             return View("IndexAjax", viewModel);
@@ -31,7 +33,9 @@ namespace RealTimeEntityFramework.Web.Controllers
         // GET: /Posts/IndexRows
         public async Task<ActionResult> IndexRows(int categoryId = 1)
         {
-            return View("_IndexRows", await db.Posts.Where(p => p.CategoryId == categoryId).ToListAsync());
+            return View("_IndexRows", await db.Posts.Where(p => p.CategoryId == categoryId)
+                .Include(p => p.Category)
+                .ToListAsync());
         }
 
         // GET: /Posts/Details/5
@@ -56,7 +60,8 @@ namespace RealTimeEntityFramework.Web.Controllers
         public ActionResult Create()
         {
             ViewBag.CategoryId = new SelectList(db.Categories, "Id", "Name", selectedValue: 1);
-            return View();
+            
+            return View(new Post { PublishOn = DateTime.Now });
         }
 
         // POST: /Posts/Create
