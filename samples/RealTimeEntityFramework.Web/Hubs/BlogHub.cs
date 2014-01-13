@@ -12,53 +12,38 @@ namespace RealTimeEntityFramework.Web.Hubs
         {
             using (var db = new BlogDbContext())
             {
-                //db.StartNotifications(Context, db.Posts, p => p.CategoryId == categoryId);
-                db.StartNotifications(Context, db.Posts, new Dictionary<string, object> { { "CategoryId", categoryId } });
+                db.StartNotifications(Context, db.Posts, new { CategoryId = categoryId });
             }
         }
+
+        public void StartNotificationsForPosts(int categoryId, bool isVisible)
+        {
+            using (var db = new BlogDbContext())
+            {
+                db.StartNotifications(Context, db.Posts, new { CategoryId = categoryId, IsVisible = isVisible });
+            }
+        }
+
+        // Ideas for property map parameter definition
+        //db.StartNotifications(Context, db.Posts, new Dictionary<string, object> { { "CategoryId", categoryId } });
+        //db.StartNotifications(Context, db.Posts, new { CategoryId = categoryId, IsVisible = isVisible });
+        //db.StartNotifications(Context, db.Posts, p => p.CategoryId == categoryId, p => p.IsVisible);
+        //db.StartNotifications(Context, db.Posts, p => p.CategoryId == categoryId && p.IsVisible);
 
         public void StopNotificationsForPosts(int categoryId)
         {
             using (var db = new BlogDbContext())
             {
-                //db.StopNotifications(Context, db.Posts, p => p.CategoryId == categoryId);
-                db.StartNotifications(Context, db.Posts, new Dictionary<string, object> { { "CategoryId", categoryId } });
+                db.StopNotifications(Context, db.Posts, new { CategoryId = categoryId });
             }
         }
 
-        //public Post GetPost(int id)
-        //{
-        //    using (var db = new BlogDbContext())
-        //    {
-        //        return db.FindWithNotifications(Context, db.Posts, id);
-        //    }
-        //}
-
-        //public IEnumerable<Post> GetPostsForCategory(int categoryId)
-        //{
-        //    using (var db = new BlogDbContext())
-        //    {
-        //        return db.SelectWithNotifications(Context, db.Posts, p => p.CategoryId == categoryId)
-        //                 .ToList();
-        //    }
-        //}
-
-        //public IEnumerable<Post> GetPostsForDefaultCategory()
-        //{
-        //    using (var db = new BlogDbContext())
-        //    {
-        //        return db.SelectWithNotifications(Context, db.Posts, p => p.CategoryId == 1)
-        //                 .ToList();
-        //    }
-        //}
-
-        //public IEnumerable<Post> GetPostsForMonth(int month)
-        //{
-        //    using (var db = new BlogDbContext())
-        //    {
-        //        return db.SelectWithNotifications(Context, db.Posts, p => p.PublishOn.Month == month)
-        //                 .ToList();
-        //    }
-        //}
+        public void StopNotificationsForPosts(int categoryId, bool isVisible)
+        {
+            using (var db = new BlogDbContext())
+            {
+                db.StopNotifications(Context, db.Posts, new { CategoryId = categoryId, IsVisible = isVisible });
+            }
+        }
     }
 }

@@ -64,6 +64,7 @@
     <Compile Include="HubDbContext%27T.cs" />
     <Compile Include="PersistentConnectionDbContext%27T.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="SignalRChangeNotification.cs" />
     <Compile Include="SignalRDbContext.cs" />
   </ItemGroup>
   <ItemGroup>

@@ -13,6 +13,9 @@ namespace RealTimeEntityFramework.Web.Models
             context.ChangeNotificationsEnabled = false;
 
             context.Categories.Add(new Category { Name = "Default" });
+            context.Categories.Add(new Category { Name = "Thoughts" });
+            context.Categories.Add(new Category { Name = "Musings" });
+            context.Categories.Add(new Category { Name = "Pontifications" });
 
             context.SaveChanges();
         }

@@ -127,6 +127,11 @@ namespace RealTimeEntityFramework.SignalR
         //    StartNotifications<TEntity>(hubContext.ConnectionId, predicate);
         //}
 
+        public void StartNotifications<TEntity>(HubCallerContext hubContext, DbSet<TEntity> entities, object propertyMap) where TEntity : class
+        {
+            StartNotifications<TEntity>(hubContext.ConnectionId, propertyMap);
+        }
+
         public void StartNotifications<TEntity>(HubCallerContext hubContext, DbSet<TEntity> entities, IDictionary<string, object> properties) where TEntity : class
         {
             StartNotifications<TEntity>(hubContext.ConnectionId, properties);
@@ -142,12 +147,17 @@ namespace RealTimeEntityFramework.SignalR
         //    StopNotifications<TEntity>(hubContext.ConnectionId, predicate);
         //}
 
+        public void StopNotifications<TEntity>(HubCallerContext hubContext, DbSet<TEntity> entities, object propertyMap) where TEntity : class
+        {
+            StopNotifications<TEntity>(hubContext.ConnectionId, propertyMap);
+        }
+
         public void StopNotifications<TEntity>(HubCallerContext hubContext, DbSet<TEntity> entities, IDictionary<string, object> properties) where TEntity : class
         {
             StopNotifications<TEntity>(hubContext.ConnectionId, properties);
         }
 
-        protected override void OnChange(string groupName, ChangeNotification change)
+        protected override void OnChange(string groupName, SignalRChangeNotification change)
         {
             ((IClientProxy)_hubContext.Clients.Group(groupName)).Invoke(ClientEntityUpdatedMethodName, change);
         }

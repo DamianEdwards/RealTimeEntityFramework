@@ -4,6 +4,7 @@ using System.Data.Common;
 using System.Data.Entity;
 using System.Data.Entity.Core.Objects;
 using System.Data.Entity.Infrastructure;
+using System.Diagnostics;
 using System.Linq;
 using System.Linq.Expressions;
 using Microsoft.AspNet.SignalR;
@@ -92,10 +93,19 @@ namespace RealTimeEntityFramework.SignalR
         //    }
         //}
 
+        public void StartNotifications<TEntity>(string connectionId, object groupPropertiesMap) where TEntity : class
+        {
+            var propertiesDictionary = groupPropertiesMap.GetType().GetProperties().ToDictionary(p => p.Name, p => p.GetValue(groupPropertiesMap));
+            
+            StartNotifications<TEntity>(connectionId, propertiesDictionary);
+        }
+
         public void StartNotifications<TEntity>(string connectionId, IDictionary<string, object> properties) where TEntity : class
         {
             var groupName = NotificationGroupManager.GetGroupNameForEntityProperties<TEntity>(properties);
 
+            Debug.WriteLine("Adding connection {0} to notification group {1}.", connectionId, groupName);
+            
             _groupManager.Add(connectionId, groupName);
         }
 
@@ -116,11 +126,27 @@ namespace RealTimeEntityFramework.SignalR
         //    }
         //}
 
+        public void StopNotifications<TEntity>(string connectionId, object groupPropertiesMap) where TEntity : class
+        {
+            var propertiesDictionary = groupPropertiesMap.GetType().GetProperties().ToDictionary(p => p.Name, p => p.GetValue(groupPropertiesMap));
+
+            StopNotifications<TEntity>(connectionId, propertiesDictionary);
+        }
+
         public void StopNotifications<TEntity>(string connectionId, IDictionary<string, object> properties) where TEntity : class
         {
             var groupName = NotificationGroupManager.GetGroupNameForEntityProperties<TEntity>(properties);
-
+            
+            Debug.WriteLine("Removing connection {0} to notification group {1}.", connectionId, groupName);
+            
             _groupManager.Remove(connectionId, groupName);
         }
+
+        protected override void OnChange(string groupName, ChangeNotification change)
+        {
+            OnChange(groupName, SignalRChangeNotification.Create(change));
+        }
+
+        protected abstract void OnChange(string groupName, SignalRChangeNotification change);
     }
 }

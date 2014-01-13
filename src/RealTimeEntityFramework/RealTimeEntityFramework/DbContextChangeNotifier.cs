@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Data.Entity;
 using System.Data.Entity.Core;
 using System.Data.Entity.Infrastructure;
+using System.Diagnostics;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Text;
@@ -219,6 +220,8 @@ namespace RealTimeEntityFramework
                             ChangeType.Added,
                             change);
 
+                        Debug.WriteLine("Change notification: A {0} with key {1} was added to notification group {2}", change.Entity.GetType().Name, String.Join(",", change.EntityKey.EntityKeyValues.Select(k => k.Value)), groupName);
+
                         OnChange(groupName, notification);
 
                         if (change.EntityState == EntityState.Modified)
@@ -228,6 +231,8 @@ namespace RealTimeEntityFramework
                             notification = ChangeNotification.Create(
                                 ChangeType.Deleted,
                                 change);
+
+                            Debug.WriteLine("Change notification: A {0} with key {1} was removed from notification group {2}", change.Entity.GetType().Name, String.Join(",", change.EntityKey.EntityKeyValues.Select(k => k.Value)), groupName);
 
                             OnChange(groupName, notification);
                         }
@@ -239,6 +244,8 @@ namespace RealTimeEntityFramework
                         var notification = ChangeNotification.Create(
                             change.EntityState,
                             change);
+
+                        Debug.WriteLine("Change notification: A {0} with key {1} was changed in notification group {2}", change.Entity.GetType().Name, String.Join(",", change.EntityKey.EntityKeyValues.Select(k => k.Value)), groupName);
 
                         OnChange(groupName, notification);
                     }

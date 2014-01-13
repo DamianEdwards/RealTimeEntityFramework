@@ -8,6 +8,25 @@
 }
 
 <h2>Index</h2>
+    
+<div class="panel panel-default">
+    @*<div class="panel-heading">Filter</div>*@
+    <div class="panel-body">
+        @using (Html.BeginForm("", "Posts", FormMethod.Get, new { @class = "form-inline" }))
+        {
+            <div class="form-group">
+                @Html.LabelFor(model => model.CategoryId, "Category")
+                @Html.DropDownList("CategoryId", Model.CategoriesList, new { @class = "form-control input-sm" })
+            </div>
+            <div class="form-group">
+                @Html.LabelFor(model => model.IsVisible, "Visibility", new { @class = "" })
+                @Html.DropDownList("IsVisible", Model.IsVisibleList, new { @class = "form-control input-sm" })
+            </div>
+            <button type="submit" class="btn btn-sm">Filter</button>
+        }
+    </div>
+</div>
+
 
 <p>
     @Html.ActionLink("Create New", "Create")
@@ -28,12 +47,14 @@
                 @Html.DisplayNameFor(Model.Posts, post => post.PublishOn)
             </th>
             <th>
-                @Html.DisplayNameFor(Model.Posts, post => post.Content)
+                @Html.DisplayNameFor(Model.Posts, post => post.IsVisible)
             </th>
             <th><!-- Actions --></th>
         </tr>
     </thead>
-    <tbody id="postsBody" data-contentUrl="@Url.Action("IndexRows")" data-categoryId="@Model.CategoryId">
+    <tbody id="postsBody" data-contentUrl="@Url.Action("IndexRows")"
+                          data-categoryId="@Model.CategoryId"
+                          data-isVisible="@Model.IsVisible">
         @Html.Partial("_IndexRows", Model.Posts)
     </tbody>
 </table>
@@ -50,14 +71,15 @@
     var blogHub = $.connection.blogHub,
         $postsBody = $("#postsBody"),
         contentUrl = $postsBody.attr("data-contentUrl"),
-        categoryId = $postsBody.attr("data-categoryId");
+        categoryId = $postsBody.attr("data-categoryId"),
+        isVisible = $postsBody.attr("data-isVisible");
 
     blogHub.client.entityUpdated = function (change) {
         console.log("Entity change notification received!");
         console.log(change);
 
         // Refresh the table of posts
-        $.get(contentUrl, function (postsHtml) {
+        $.get(contentUrl, { CategoryId : categoryId, IsVisible : isVisible }, function (postsHtml) {
             $postsBody.html(postsHtml);
         });
     };
@@ -65,9 +87,21 @@
     $.connection.hub.logging = true;
     $.connection.hub.start().done(function () {
         // Invoke the method on the server to subscribe to updates
-        blogHub.server.startNotificationsForPosts(categoryId).done(function () {
-            console.log("Now subscribed to notification groups!");
-        });
+        var startPromise;
+
+        if (isVisible === "") {
+            startPromise = blogHub.server.startNotificationsForPosts(categoryId);
+        } else {
+            startPromise = blogHub.server.startNotificationsForPosts(categoryId, isVisible);
+        }
+
+        startPromise
+            .done(function () {
+                console.log("Now subscribed to notification groups!");
+            })
+            .fail(function (e) {
+                console.log(e);
+            });
     });
 
 </script>

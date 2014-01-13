@@ -17,12 +17,39 @@ namespace RealTimeEntityFramework.Web.Controllers
         private BlogDbContext db = new BlogDbContext();
 
         // GET: /Posts/
-        public async Task<ActionResult> Index(int categoryId = 1)
+        public async Task<ActionResult> Index(int categoryId = 1, bool? isVisible = null)
         {
+            var query = db.Posts.Where(p => p.CategoryId == categoryId);
+
+            if (isVisible.HasValue)
+            {
+                query = query.Where(p => p.IsVisible == isVisible.Value);
+            }
+
             var viewModel = new PostsIndexViewModel
             {
                 CategoryId = categoryId,
-                Posts = await db.Posts.Where(p => p.CategoryId == categoryId)
+                CategoriesList = new SelectList(db.Categories, "Id", "Name", selectedValue: 1),
+                IsVisible = isVisible,
+                IsVisibleList = new List<SelectListItem>
+                {
+                    new SelectListItem
+                    {
+                        Value = "",
+                        Text = "All Posts"
+                    },
+                    new SelectListItem
+                    {
+                        Value = "true",
+                        Text = "Visible Posts only"
+                    },
+                    new SelectListItem
+                    {
+                        Value = "false",
+                        Text = "Invisible Posts only"
+                    }
+                },
+                Posts = await query
                     .Include(p => p.Category)
                     .ToListAsync()
             };
@@ -31,9 +58,16 @@ namespace RealTimeEntityFramework.Web.Controllers
         }
 
         // GET: /Posts/IndexRows
-        public async Task<ActionResult> IndexRows(int categoryId = 1)
+        public async Task<ActionResult> IndexRows(int categoryId = 1, bool? isVisible = null)
         {
-            return View("_IndexRows", await db.Posts.Where(p => p.CategoryId == categoryId)
+            var query = db.Posts.Where(p => p.CategoryId == categoryId);
+
+            if (isVisible.HasValue)
+            {
+                query = query.Where(p => p.IsVisible == isVisible.Value);
+            }
+
+            return View("_IndexRows", await query
                 .Include(p => p.Category)
                 .ToListAsync());
         }
@@ -47,12 +81,12 @@ namespace RealTimeEntityFramework.Web.Controllers
             }
 
             Post post = await db.Posts.FindAsync(id);
-            
+
             if (post == null)
             {
                 return HttpNotFound();
             }
-            
+
             return View(post);
         }
 
@@ -60,7 +94,7 @@ namespace RealTimeEntityFramework.Web.Controllers
         public ActionResult Create()
         {
             ViewBag.CategoryId = new SelectList(db.Categories, "Id", "Name", selectedValue: 1);
-            
+
             return View(new Post { PublishOn = DateTime.Now });
         }
 
@@ -69,7 +103,7 @@ namespace RealTimeEntityFramework.Web.Controllers
         // more details see http://go.microsoft.com/fwlink/?LinkId=317598.
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<ActionResult> Create([Bind(Include="Title,PublishOn,CategoryId,Content")] Post post)
+        public async Task<ActionResult> Create([Bind(Include = "Title,PublishOn,CategoryId,Content,IsVisible")] Post post)
         {
             post.CreatedOn = DateTimeOffset.Now;
 
@@ -105,15 +139,19 @@ namespace RealTimeEntityFramework.Web.Controllers
         // more details see http://go.microsoft.com/fwlink/?LinkId=317598.
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<ActionResult> Edit([Bind(Include="Id,Title,CreatedOn,PublishOn,CategoryId,Content")] Post post)
+        public async Task<ActionResult> Edit(int id /* [Bind(Include="Id,Title,PublishOn,CategoryId,Content,IsVisible")] Post post*/)
         {
-            if (ModelState.IsValid)
+            var post = await db.Posts.FindAsync(id);
+
+            if (TryUpdateModel(post, new[] { "Title", "PublishOn", "CategoryId", "Content", "IsVisible" })
+                && ModelState.IsValid)
             {
-                db.Entry(post).State = EntityState.Modified;
                 await db.SaveChangesAsync();
                 return RedirectToAction("Index");
             }
+
             ViewBag.CategoryId = new SelectList(db.Categories, "Id", "Name", post.CategoryId);
+
             return View(post);
         }
 

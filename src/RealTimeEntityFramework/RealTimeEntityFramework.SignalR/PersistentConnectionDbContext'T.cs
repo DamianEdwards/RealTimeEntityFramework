@@ -95,7 +95,7 @@ namespace RealTimeEntityFramework.SignalR
             Initialize(connectionManager);
         }
 
-        protected override void OnChange(string groupName, ChangeNotification change)
+        protected override void OnChange(string groupName, SignalRChangeNotification change)
         {
             _connectionContext.Groups.Send(groupName, change);
         }

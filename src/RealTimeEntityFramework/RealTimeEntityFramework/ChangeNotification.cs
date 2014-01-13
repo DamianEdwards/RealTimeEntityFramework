@@ -7,9 +7,8 @@ using Newtonsoft.Json.Converters;
 
 namespace RealTimeEntityFramework
 {
-    public struct ChangeNotification
+    public class ChangeNotification
     {
-        [JsonConverter(typeof(StringEnumConverter))]
         public ChangeType ChangeType { get; set; }
 
         public IEnumerable<string> SourceFieldNames { get; set; }
@@ -27,7 +26,7 @@ namespace RealTimeEntityFramework
         {
             return new ChangeNotification
             {
-                ChangeType = ChangeType.Added,
+                ChangeType = changeType,
                 SourceFieldNames = sourceFieldNames,
                 EntityType = change.Entity.GetType(),
                 EntityKeys = change.EntityKey.EntityKeyValues.ToDictionary(k => k.Key, k => k.Value)

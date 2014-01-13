@@ -46,7 +46,7 @@ namespace RealTimeEntityFramework
 
         public bool IsChanged
         {
-            get { return OriginalValue != CurrentValue; }
+            get { return !OriginalValue.Equals(CurrentValue); }
         }
     }
 }

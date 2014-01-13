@@ -18,12 +18,12 @@ namespace RealTimeEntityFramework
             return group.GetGroupName(properties.Values);
         }
 
-        public IEnumerable<NotificationGroup> GetGroupsForEntity<TEntity>()
+        internal IEnumerable<NotificationGroup> GetGroupsForEntity<TEntity>()
         {
             return GetGroupsForEntity(typeof(TEntity));
         }
 
-        public IEnumerable<NotificationGroup> GetGroupsForEntity(Type entityType)
+        internal IEnumerable<NotificationGroup> GetGroupsForEntity(Type entityType)
         {
             var entityGroups = _entityGroupsCache.GetOrAdd(entityType, t =>
             {
