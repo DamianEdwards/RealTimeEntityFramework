@@ -19,7 +19,7 @@ namespace RealTimeEntityFramework
 
             // Group name format: EN_Full.Type.Name_Property1Name,Property1Value_Property2Name,Property2Value
 
-            var namePrefix = "EN_" + EntityType.FullName + "_";
+            var namePrefix = "EN_" + EntityType.FullName;
 
             return PropertyNames.Zip(values, (name, value) => new KeyValuePair<string, object>(name, value))
                                 .Aggregate(namePrefix, (name, p) => name + "_" + p.Key + "," + p.Value.ToString());

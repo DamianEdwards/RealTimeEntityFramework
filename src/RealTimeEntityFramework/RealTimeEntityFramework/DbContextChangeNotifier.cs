@@ -1,18 +1,14 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Data.Entity;
-using System.Data.Entity.Core;
-using System.Data.Entity.Infrastructure;
 using System.Diagnostics;
 using System.Linq;
-using System.Linq.Expressions;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
 namespace RealTimeEntityFramework
 {
-    public class DbContextChangeNotifier
+    internal class DbContextChangeNotifier
     {
         private readonly IDbContext _dbContext;
         private readonly EntityNotificationGroupManager _notificationGroupManager;
@@ -95,45 +91,6 @@ namespace RealTimeEntityFramework
             }
 
             return result;
-        }
-
-        public string GetPrimaryKeyNotificationGroupName<TEntity>(params object[] keyValues) where TEntity : class
-        {
-            return GetPrimaryKeyNotificationGroupName(typeof(TEntity).FullName, _dbContext.GetEntityKey<TEntity>(keyValues));
-        }
-
-        private static string GetPrimaryKeyNotificationGroupName(string entityTypeName, EntityKey entityKey)
-        {
-            if (entityKey != null && entityKey.EntityKeyValues != null)
-            {
-                // Build group name for entity key, format: [EntityTypeName]_PrimaryKey_[Key1Name]_[Key1Value]_[Key2Name]_[Key2Value]
-                var prefix = String.Format("{0}_PrimaryKey", entityTypeName);
-                return entityKey.EntityKeyValues.Aggregate(prefix, (name, k) => String.Format("{0}_{1}_{2}", name, k.Key, k.Value));
-            }
-
-            return null;
-        }
-
-        public IEnumerable<string> GetPredicateNotificationGroupNames<TEntity>(Expression<Func<TEntity, bool>> predicate)
-        {
-            // TODO: Support predicates with multiple compatible conditions, which result in multiple groups, e.g. p => p.CategoryId = categoryId && p.IsVisible
-
-            var valueExtractor = new PredicateExpressionValuesExtractor<TEntity>(_dbContext);
-            valueExtractor.Visit(predicate);
-
-            if (!valueExtractor.IsValid)
-            {
-                throw new InvalidOperationException("The predicate provided does not support change notifications.");
-            }
-
-            // Build group name for predicate value, format: [EntityTypeName]_Set_[FieldName]_[FieldValue]
-            var groupNamePrefix = String.Format("{0}_Set", typeof(TEntity).FullName);
-            foreach (var predicateField in valueExtractor.PredicateFields)
-            {
-                var groupName = String.Format("{0}_{1}_{2}", groupNamePrefix, predicateField.Key, predicateField.Value);
-
-                yield return groupName;
-            }
         }
 
         private void SetEntityKeysOnAddedEntities(List<ChangeDetails> changes)

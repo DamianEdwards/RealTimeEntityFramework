@@ -3,12 +3,9 @@ using System.Collections.Generic;
 using System.Data.Common;
 using System.Data.Entity;
 using System.Data.Entity.Core;
-using System.Data.Entity.Core.Metadata.Edm;
 using System.Data.Entity.Core.Objects;
 using System.Data.Entity.Infrastructure;
 using System.Linq;
-using System.Linq.Expressions;
-using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -19,7 +16,7 @@ namespace RealTimeEntityFramework
     /// </summary>
     public abstract class NotifyingDbContext : DbContext, IDbContext
     {
-        private ObjectContext _objectContext;
+        private Lazy<ObjectContext> _objectContext;
         private DbContextChangeNotifier _changeNotifier;
         
         public NotifyingDbContext()
@@ -70,7 +67,7 @@ namespace RealTimeEntityFramework
 
         private void Initialize()
         {
-            _objectContext = ((IObjectContextAdapter)this).ObjectContext;
+            _objectContext = new Lazy<ObjectContext>(() => ((IObjectContextAdapter)this).ObjectContext);
             ChangeNotificationsEnabled = true;
             NotificationGroupManager = new EntityNotificationGroupManager();
             _changeNotifier = new DbContextChangeNotifier(this, NotificationGroupManager);
@@ -147,29 +144,11 @@ namespace RealTimeEntityFramework
 
         EntityKey IDbContext.GetEntityKey(object entity)
         {
-            var objectContext = ((IObjectContextAdapter)this).ObjectContext;
+            var objectContext = _objectContext.Value;
             var objectStateEntry = objectContext.ObjectStateManager.GetObjectStateEntry(entity);
             var entityKey = objectStateEntry != null ? objectStateEntry.EntityKey : null;
             
             return entityKey;
-        }
-
-        EntityKey IDbContext.GetEntityKey<TEntity>(params object[] keyValues)
-        {
-            var objectSet = _objectContext.CreateObjectSet<TEntity>();
-            var keyNames = objectSet.EntitySet.ElementType.KeyMembers.Select(k => k.Name);
-
-            return new EntityKey(objectSet.EntitySet.Name, keyNames.Zip(keyValues, (k, v) => new EntityKeyMember(k, v)));
-        }
-
-        EntityType IDbContext.GetEntityModelMetadata(Type entityType)
-        {
-            return _objectContext.GetEntityModelMetadata(entityType);
-        }
-
-        DbEntityEntry IDbContext.Entry(object entity)
-        {
-            return Entry(entity);
         }
     }
 }

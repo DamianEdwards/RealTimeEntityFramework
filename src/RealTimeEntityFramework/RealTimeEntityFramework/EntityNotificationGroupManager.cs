@@ -15,6 +15,11 @@ namespace RealTimeEntityFramework
             var group = GetGroupsForEntity<TEntity>()
                 .FirstOrDefault(g => g.PropertyNames.SequenceEqual(properties.Keys.OrderBy(n => n)));
 
+            if (group == null)
+            {
+                throw new ArgumentException(String.Format("No matching notifcation group for entity type {0} with the specified properties could be found. Ensure the group is defined on the type using the NotificationGroupAttribute.", typeof(TEntity).FullName), "properties");
+            }
+
             return group.GetGroupName(properties.Values);
         }
 
@@ -43,7 +48,9 @@ namespace RealTimeEntityFramework
 
                 var uniqueGroups = groupsFromType.Concat(groupsFromProps).Distinct();
 
-                // TODO: Validate the properties of the groups, e.g. have to primitive types, etc.
+                // TODO: Validate the properties of the groups:
+                //         - have to exist on the entity model
+                //         - have to be GUID, numeric, boolean or string (support DateTime possibly?)
 
                 return uniqueGroups;
             });
